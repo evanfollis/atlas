@@ -5,5 +5,7 @@ build/
 .venv/
 data/
 sessions/
+reports/
+methodology.jsonl
 *.pyc
 .pytest_cache/

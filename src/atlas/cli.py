@@ -503,3 +503,44 @@ def status() -> None:
         by_status[s] = by_status.get(s, 0) + 1
     if by_status:
         click.echo(f"Hypotheses:    {', '.join(f'{v} {k}' for k, v in by_status.items())}")
+
+
+# --- Autonomous Runner ---
+
+@cli.command("run")
+@click.option("--once", is_flag=True, help="Run one cycle and exit")
+@click.option("--interval", default=3600, help="Seconds between cycles (continuous mode)")
+@click.option("--exchange", default="kraken", help="Exchange to use")
+def run_autonomous(once: bool, interval: int, exchange: str) -> None:
+    """Run the autonomous research loop."""
+    import logging
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+
+    from atlas.runner import AutonomousRunner
+    runner = AutonomousRunner(base_dir=BASE_DIR, exchange_id=exchange)
+
+    if once:
+        report = runner.run_cycle()
+        click.echo(json.dumps(report, indent=2, default=str))
+    else:
+        runner.run_continuous(interval_seconds=interval)
+
+
+@cli.command("scan")
+@click.option("--symbol", default="BTC/USDT", help="Trading pair")
+@click.option("--timeframe", default="4h", help="Candle timeframe")
+def scan_signals(symbol: str, timeframe: str) -> None:
+    """Scan for signals in market data (debug/inspect)."""
+    from atlas.data.market import MarketData
+    from atlas.generation.signals import scan_all
+
+    md = MarketData(cache_dir=BASE_DIR / "data")
+    df = md.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=500)
+    signals = scan_all(df)
+
+    if not signals:
+        click.echo("No signals detected.")
+        return
+
+    for s in signals:
+        click.echo(f"[{s.strength:.2f}] {s.method}: {s.description}")
