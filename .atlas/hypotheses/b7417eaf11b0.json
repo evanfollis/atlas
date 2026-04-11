@@ -1,0 +1,15 @@
+{
+  "id": "b7417eaf11b0",
+  "created_at": "2026-04-11 02:54:59.943573+00:00",
+  "claim": "BTC momentum over 20 periods predicts positive 4h returns",
+  "rationale": "Trend-following is a well-documented factor in traditional markets",
+  "falsification_criteria": "Sharpe ratio not significantly different from zero at alpha=0.05",
+  "significance_threshold": 0.05,
+  "domain": "crypto",
+  "tags": [
+    "momentum",
+    "btc"
+  ],
+  "status": "falsified",
+  "parent_primitive_id": null
+}

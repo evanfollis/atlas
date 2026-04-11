@@ -1,0 +1,22 @@
+{
+  "id": "bc858131399e",
+  "created_at": "2026-04-11 02:56:32.343931+00:00",
+  "experiment_id": "da31578d8ef2",
+  "hypothesis_id": "b7417eaf11b0",
+  "evidence_class": "backtest_result",
+  "quality": "weak",
+  "direction": "contradicts",
+  "summary": "20-period momentum on BTC/USDT 4h shows negative Sharpe (-0.86), not significant. Strategy underperforms.",
+  "statistics": {
+    "total_return": -0.12222445732443232,
+    "sharpe": -0.8595919347417008,
+    "max_drawdown": -0.3965166975227522,
+    "sharpe_p_value": 0.7262790008603386,
+    "mean_p_value": 0.6820510630764494,
+    "bootstrap_ci": [
+      -5.111030576614516,
+      3.2644333931287903
+    ]
+  },
+  "data_range": "recent 500 4h candles"
+}

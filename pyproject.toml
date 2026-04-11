@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atlas"
+version = "0.1.0"
+description = "Scientific causal reasoning engine for systematic research"
+requires-python = ">=3.11"
+dependencies = [
+    "ccxt>=4.0",
+    "click>=8.1",
+    "networkx>=3.1",
+    "pandas>=2.0",
+    "pydantic>=2.0",
+    "scipy>=1.11",
+    "statsmodels>=0.14",
+]
+
+[project.scripts]
+atlas = "atlas.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

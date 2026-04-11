@@ -1,0 +1,24 @@
+{
+  "id": "da31578d8ef2",
+  "created_at": "2026-04-11 02:55:09.093794+00:00",
+  "hypothesis_id": "b7417eaf11b0",
+  "description": "Backtest 20-period momentum on BTC/USDT 4h",
+  "method": "backtest",
+  "parameters": {
+    "lookback": 20
+  },
+  "success_criteria": "Sharpe > 0 with p < 0.05",
+  "failure_criteria": "Sharpe not significantly different from zero",
+  "status": "completed",
+  "results": {
+    "total_return": -0.12222445732443232,
+    "sharpe": -0.8595919347417008,
+    "max_drawdown": -0.3965166975227522,
+    "sharpe_p_value": 0.7262790008603386,
+    "mean_p_value": 0.6820510630764494,
+    "bootstrap_ci": [
+      -5.111030576614516,
+      3.2644333931287903
+    ]
+  }
+}
