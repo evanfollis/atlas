@@ -26,7 +26,9 @@ def sharpe_significance(
 ) -> SignificanceResult:
     """Test whether Sharpe ratio is significantly different from benchmark.
 
-    Uses the Lo (2002) adjustment for autocorrelation in returns.
+    Uses simplified iid/normal SE approximation. Does NOT adjust for
+    autocorrelation (Lo 2002) — p-values may be optimistic for serially
+    correlated returns. Treat as a lower bound on uncertainty.
     """
     n = len(returns)
     mean_r = returns.mean()

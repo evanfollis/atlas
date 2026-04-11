@@ -34,10 +34,27 @@ def _state_dir() -> Path:
     return d
 
 
+# Fields that must not change after initial creation (pre-registration integrity)
+_IMMUTABLE_FIELDS: dict[str, set[str]] = {
+    "hypotheses": {"claim", "rationale", "falsification_criteria", "significance_threshold"},
+    "experiments": {"hypothesis_id", "description", "method", "success_criteria", "failure_criteria", "parameters"},
+}
+
+
 def _save_obj(kind: str, obj_id: str, data: dict) -> None:
     d = _state_dir() / kind
     d.mkdir(exist_ok=True)
-    with open(d / f"{obj_id}.json", "w") as f:
+    path = d / f"{obj_id}.json"
+
+    # Enforce immutability of pre-registered fields
+    if path.exists() and kind in _IMMUTABLE_FIELDS:
+        with open(path) as f:
+            existing = json.load(f)
+        for field in _IMMUTABLE_FIELDS[kind]:
+            if field in existing and field in data and str(existing[field]) != str(data[field]):
+                raise ValueError(f"Cannot modify pre-registered field '{field}' on {kind}/{obj_id}")
+
+    with open(path, "w") as f:
         json.dump(data, f, indent=2, default=str)
 
 
@@ -61,10 +78,16 @@ def _list_objs(kind: str) -> list[dict]:
 
 
 def _active_cycle() -> ResearchCycle | None:
+    """Return the active cycle, but only if exactly one exists."""
+    active = []
     for data in _list_objs("cycles"):
         cycle = ResearchCycle.model_validate(data)
         if cycle.status == CycleStatus.ACTIVE:
-            return cycle
+            active.append(cycle)
+    if len(active) == 1:
+        return active[0]
+    if len(active) > 1:
+        click.echo(f"Warning: {len(active)} active cycles. Use --cycle to specify.", err=True)
     return None
 
 

@@ -14,8 +14,9 @@ class CausalGraph:
     def add_primitive(self, p: ReasoningPrimitive) -> None:
         self.g.add_node(p.id, claim=p.claim, confidence=p.confidence, tags=p.tags)
         for parent_id in p.causal_parents:
-            if parent_id in self.g:
-                self.g.add_edge(parent_id, p.id)
+            if parent_id not in self.g:
+                raise ValueError(f"Parent primitive {parent_id} not found in graph")
+            self.g.add_edge(parent_id, p.id)
 
     def get_primitive_data(self, primitive_id: str) -> dict | None:
         if primitive_id in self.g:
