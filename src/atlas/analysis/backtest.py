@@ -75,6 +75,10 @@ def run_backtest(
             their flow as maker. Missed-fill risk is not modeled — caller is
             responsible for justifying the chosen maker_fill_rate.
     """
+    # Require both-or-neither for maker/taker: silent fallback to fee_bps on
+    # partial configuration hides optimism bugs.
+    if (maker_bps is None) != (taker_bps is None):
+        raise ValueError("maker_bps and taker_bps must be provided together")
     if maker_bps is not None and taker_bps is not None:
         fee_bps = effective_cost_bps(maker_bps, taker_bps, maker_fill_rate)
     returns = prices.pct_change().dropna()
@@ -83,15 +87,15 @@ def run_backtest(
 
     strategy_returns = returns * signals_aligned
 
-    # Deduct trading costs on position changes
+    # Deduct trading costs proportional to |Δposition|. A 1→-1 reversal is
+    # exit + entry = 2 one-way fees; a 0→1 entry or 1→0 exit is 1 fee.
+    position_diff = signals_aligned.diff()
+    position_diff.iloc[0] = signals_aligned.iloc[0]  # first bar: 0→signal
+    turnover = position_diff.abs()
     if fee_bps > 0:
-        position_diff = signals_aligned.diff()
-        # First bar: entering from flat (0), so any non-zero position is a trade
-        position_diff.iloc[0] = signals_aligned.iloc[0]
-        position_changed = position_diff != 0
-        cost_per_trade = fee_bps / 10_000  # one-way fee per position change
+        cost_per_unit = fee_bps / 10_000
         strategy_returns = strategy_returns.copy()
-        strategy_returns[position_changed] -= cost_per_trade
+        strategy_returns -= turnover * cost_per_unit
 
     cumulative = (1 + strategy_returns).cumprod()
     total_return = float(cumulative.iloc[-1] - 1) if len(cumulative) > 0 else 0.0
@@ -107,7 +111,8 @@ def run_backtest(
     max_drawdown = float(drawdowns.min())
 
     trade_returns = strategy_returns[signals_aligned != 0]
-    n_trades = int((signals_aligned.diff().fillna(0) != 0).sum())
+    # Count a 1→-1 reversal as 2 trades (exit + entry); match fee accounting.
+    n_trades = int(turnover.sum())
     win_rate = float((trade_returns > 0).mean()) if len(trade_returns) > 0 else 0.0
 
     return BacktestResult(

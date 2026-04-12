@@ -198,32 +198,40 @@ def cusum_ols(y: np.ndarray | pd.Series, x: np.ndarray | pd.Series,
     scaled = np.where(np.isnan(recursive_resid), 0.0, recursive_resid / sigma)
     cusum = np.cumsum(scaled)
 
-    # Critical band at the terminal sample size
     c_val = {0.05: 0.948, 0.01: 1.143}.get(alpha)
     if c_val is None:
         raise ValueError(f"alpha must be 0.05 or 0.01, got {alpha}")
     T = n - k
-    # The band widens linearly: c_alpha * (sqrt(T) + 2*(t-k)/sqrt(T))
-    # but a commonly-used conservative bound at terminal t is c_alpha * sqrt(T).
-    # We report the terminal bound for the scalar statistic.
-    critical = c_val * np.sqrt(T)
-    statistic = float(np.nanmax(np.abs(cusum)))
 
-    # First breach: find first t where |cusum[t]| > linear band at that t.
-    # BDE rejects if the CUSUM path crosses the widening band anywhere.
+    # Brown-Durbin-Evans rejects iff |W_t| crosses the widening band
+    #   band(t) = c_alpha * (sqrt(T) + 2*(t-k)/sqrt(T))
+    # at any t in (k, n). To give a single scalar summary that is
+    # internally consistent with the rejection rule, we report the
+    # argmax_t |W_t|/band(t) as the normalized statistic and compare
+    # against 1.0 (reject iff > 1). The raw |W_t| at that t and the
+    # band value at that t are also exposed for interpretation.
     first_breach = None
     any_breach = False
+    max_norm = 0.0
+    argmax_t = k + 1
     for t_idx in range(k + 1, n):
         band_t = c_val * (np.sqrt(T) + 2.0 * (t_idx - k) / np.sqrt(T))
+        norm = abs(cusum[t_idx]) / band_t
+        if norm > max_norm:
+            max_norm = norm
+            argmax_t = t_idx
         if abs(cusum[t_idx]) > band_t:
             any_breach = True
             if first_breach is None:
                 first_breach = t_idx
 
+    statistic = float(abs(cusum[argmax_t]))
+    critical = float(c_val * (np.sqrt(T) + 2.0 * (argmax_t - k) / np.sqrt(T)))
+
     return CUSUMResult(
         statistic=statistic,
         critical_value=float(critical),
-        reject_stable=bool(any_breach or statistic > critical),
+        reject_stable=bool(any_breach),
         recursive_residuals=recursive_resid,
         cusum_path=cusum,
         first_breach_index=first_breach,

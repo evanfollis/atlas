@@ -52,7 +52,9 @@ ch = chow_test(df["eth"].values, df["btc_lag6"].values, break_index=break_idx)
 print(f"\nChow @ mid-sample ({df.index[break_idx]}): "
       f"F={ch.f_statistic:.2f} p={ch.p_value:.4f} reject={ch.reject_stable}")
 
-# Chow test around Jan 2021 (visual inflection in calendar-year table)
+# Chow test around Jan 2021 — POST-SELECTION, descriptive only.
+# The breakpoint was chosen to match the calendar-year table's inflection.
+# Do not interpret this p-value as a valid α-level test.
 target = pd.Timestamp("2021-01-01", tz="UTC")
 idx_2021 = df.index.get_indexer([target], method="nearest")[0]
 ch2 = chow_test(df["eth"].values, df["btc_lag6"].values, break_index=int(idx_2021))

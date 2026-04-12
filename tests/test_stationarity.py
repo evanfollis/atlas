@@ -50,9 +50,11 @@ def test_cusum_rejects_on_known_break() -> None:
     n = 500
     x = rng.normal(0, 1, n)
     y = np.empty(n)
-    # Regime 1: beta = +2.0; Regime 2: beta = -2.0
-    y[:250] = 2.0 * x[:250] + rng.normal(0, 0.2, 250)
-    y[250:] = -2.0 * x[250:] + rng.normal(0, 0.2, 250)
+    # Intercept shift at t=250: BDE CUSUM detects mean shifts in recursive
+    # residuals. A symmetric β flip on zero-mean x produces zero-mean
+    # residuals and is invisible to CUSUM (use CUSUM-of-squares for that).
+    y[:250] = 0.5 * x[:250] + rng.normal(0, 0.3, 250)
+    y[250:] = 0.5 * x[250:] + 3.0 + rng.normal(0, 0.3, 250)
     result = cusum_ols(y, x, alpha=0.05)
     assert result.reject_stable, (
         f"CUSUM should reject stability on planted break; "
@@ -66,8 +68,9 @@ def test_cusum_accepts_stable_series() -> None:
     x = rng.normal(0, 1, n)
     y = 0.4 * x + rng.normal(0, 0.3, n)
     result = cusum_ols(y, x, alpha=0.05)
-    # Under a truly stable DGP the max CUSUM is usually well inside the band.
-    assert result.statistic < result.critical_value * 1.1
+    # Under a truly stable DGP the CUSUM path should not breach the band.
+    assert not result.reject_stable
+    assert result.first_breach_index is None
 
 
 def test_chow_test_rejects_on_break() -> None:
