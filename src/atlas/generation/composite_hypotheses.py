@@ -125,10 +125,62 @@ def from_sentiment_regime_confluence(signal: Signal, symbol: str, timeframe: str
     )
 
 
+def from_end_of_month(signal: Signal, symbol: str, timeframe: str) -> Hypothesis:
+    direction = signal.metadata["direction"]
+    diff_pct = signal.metadata["diff"] * 100
+    n = signal.metadata["n_eom"]
+    side = "short" if direction == "negative" else "long"
+    return Hypothesis(
+        claim=f"{symbol} exhibits {direction} drift in last 3 days of month "
+              f"({diff_pct:+.3f}% per bar vs rest, n={n}) — {side} EOM strategy",
+        rationale="Institutional rebalancing at month-end forces position trimming on "
+                  "outperforming/volatile assets to maintain target allocations. Crypto's high "
+                  "volatility makes it a frequent target of these rebalancing flows. The effect "
+                  "is causally grounded in TradFi accounting cycles, not statistical accident.",
+        falsification_criteria=f"{side.capitalize()}-EOM strategy (last 3 days of month) does not "
+                               f"produce significant returns vs always-flat baseline (p > alpha)",
+        tags=[symbol.replace("/", "_").lower(), timeframe,
+              "composite", "end_of_month", "calendar", direction, "hold_18"],
+    )
+
+
+def from_weekend_vol(signal: Signal, symbol: str, timeframe: str) -> Hypothesis:
+    ratio = signal.metadata["vol_ratio"]
+    return Hypothesis(
+        claim=f"{symbol} weekend volatility is {(1-ratio)*100:.0f}% lower than weekday — "
+              f"weekend-skip strategy avoids drawdown variance",
+        rationale="Traditional markets close on weekends, reducing institutional flow and liquidity. "
+                  "Weekend moves are retail-driven, lower volatility but also less predictable. "
+                  "Sitting out weekends preserves capital for higher-edge weekday trading.",
+        falsification_criteria="Strategy of holding only on weekdays does not produce better "
+                               "risk-adjusted returns than always-long baseline (p > alpha)",
+        tags=[symbol.replace("/", "_").lower(), timeframe,
+              "composite", "weekend_skip", "calendar", "hold_5"],
+    )
+
+
+def from_us_session(signal: Signal, symbol: str, timeframe: str) -> Hypothesis:
+    ratio = signal.metadata["vol_ratio"]
+    return Hypothesis(
+        claim=f"{symbol} US session (13:00-21:00 UTC) volatility is {(ratio-1)*100:.0f}% higher "
+              f"than other hours — US-session-only strategy concentrates exposure",
+        rationale="Peak liquidity and institutional flow during US trading hours. Asia/Europe "
+                  "sessions are quieter and more retail-dominated. Concentrating exposure to US "
+                  "hours captures the meaningful price discovery while avoiding noise.",
+        falsification_criteria="US-session-only strategy does not produce better risk-adjusted "
+                               "returns than always-long baseline (p > alpha)",
+        tags=[symbol.replace("/", "_").lower(), timeframe,
+              "composite", "us_session", "calendar", "hold_2"],
+    )
+
+
 COMPOSITE_GENERATORS = {
     "fear_capitulation": from_fear_capitulation,
     "greed_euphoria": from_greed_euphoria,
     "onchain_divergence": from_onchain_divergence,
     "miner_capitulation": from_miner_capitulation,
     "sentiment_regime_confluence": from_sentiment_regime_confluence,
+    "end_of_month_effect": from_end_of_month,
+    "weekend_vol_compression": from_weekend_vol,
+    "us_session_vol": from_us_session,
 }

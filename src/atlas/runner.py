@@ -16,6 +16,7 @@ from atlas.analysis.backtest import run_backtest, walk_forward_backtest
 from atlas.analysis.statistics import bootstrap_sharpe, mean_return_test, sharpe_significance
 from atlas.data.alternative import AlternativeData, align_to_price
 from atlas.data.market import MarketData
+from atlas.generation.calendar_signals import scan_calendar
 from atlas.generation.composite_hypotheses import COMPOSITE_GENERATORS
 from atlas.generation.composite_signals import scan_composite
 from atlas.generation.hypotheses import from_graph_gaps, from_signal
@@ -171,6 +172,20 @@ class AutonomousRunner:
         except Exception as e:
             log.warning("Composite signal scan failed: %s", e)
 
+        # Calendar signals: temporal patterns (EOM, weekend, US session)
+        calendar_signals = []
+        for symbol, timeframe, _, df in results:
+            split_idx = int(len(df) * oos_cutoff)
+            is_prices = df["close"].iloc[:split_idx]
+            csigs = scan_calendar(is_prices)
+            for s in csigs:
+                s.symbol = symbol
+                s.timeframe = timeframe
+            calendar_signals.extend(csigs)
+        if calendar_signals:
+            log.info("Found %d calendar signals", len(calendar_signals))
+        composite_signals.extend(calendar_signals)
+
         extra_signals = cross_signals + composite_signals
         if extra_signals:
             # Attach extra signals to the BTC/USDT 4h anchor
@@ -231,11 +246,12 @@ class AutonomousRunner:
                 h.id = _claim_hash(h.claim)
                 unique.append(h)
 
-        # Prioritize composite (multi-source) hypotheses — they trade rarely
-        # and represent the most novel research direction
-        composite = [h for h in unique if "composite" in h.tags]
+        # Prioritize: calendar > composite > single-source
+        # Calendar signals are most novel and have causal grounding in market microstructure
+        calendar = [h for h in unique if "calendar" in h.tags]
+        composite = [h for h in unique if "composite" in h.tags and "calendar" not in h.tags]
         single_source = [h for h in unique if "composite" not in h.tags]
-        prioritized = composite + single_source
+        prioritized = calendar + composite + single_source
 
         # Limit per cycle (balance thoroughness vs Bonferroni penalty)
         selected = prioritized[:5]
@@ -322,6 +338,31 @@ class AutonomousRunner:
             recovering = hr_dd > -0.03
             trigger = was_down & recovering & (~(was_down & recovering).shift(1).fillna(False))
             signals = self._apply_regime_hold(trigger, holding, direction=1)
+
+        elif "end_of_month" in h.tags:
+            # Short last 3 days of month if negative drift, long if positive
+            dom = prices.index.day
+            eom_mask = pd.Series(dom >= 29, index=prices.index)
+            direction = -1 if "negative" in h.tags else 1
+            signals = pd.Series(0, index=prices.index)
+            signals.loc[eom_mask] = direction
+            return signals
+
+        elif "weekend_skip" in h.tags:
+            # Long only on weekdays, flat on weekends
+            dow = prices.index.dayofweek
+            weekday_mask = pd.Series(dow < 5, index=prices.index)
+            signals = pd.Series(0, index=prices.index)
+            signals.loc[weekday_mask] = 1
+            return signals
+
+        elif "us_session" in h.tags:
+            # Long only during US session (13:00-21:00 UTC)
+            hour = prices.index.hour
+            us_mask = pd.Series((hour >= 13) & (hour < 21), index=prices.index)
+            signals = pd.Series(0, index=prices.index)
+            signals.loc[us_mask] = 1
+            return signals
 
         elif "regime_confluence" in h.tags:
             fg = alt_sources.get("fear_greed")
