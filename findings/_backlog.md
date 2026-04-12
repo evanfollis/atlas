@@ -44,6 +44,7 @@ Ordered by codex review #7 recommended sequence (2026-04-12). Do infrastructure 
 - Codex review #8: CUSUM rule unified; fee accounting fixed for reversals; maker/taker partial-config fail-closed; lag-6 Chow post-selection caveat
 - Phase B1: curated events dataset + event-study framework (`2026-04-12_events_first_pass.md`)
 - Phase B2 (funding resets): crowded-long funding extreme → 3d CAR null, n=640, p=0.88 (`2026-04-12_funding_reset_events.md`). Spec closed.
+- Phase B2 (FNG extremes): FNG≤20/≥80 → 10d CAR null, underpowered, fear wrong-signed (`2026-04-12_fng_events.md`). Spec closed.
 
 - DVOL rebuttal test: killed the bucket (`2026-04-12_dvol_killed.md`)
 - Regime-gated funding reversal: effect lives in wrong direction, non-stationary (`2026-04-12_funding_gated.md`)
