@@ -13,11 +13,14 @@ from atlas.models.primitive import ReasoningPrimitive
 from atlas.models.session import CycleOutcome, CycleStatus, ResearchCycle
 from atlas.storage.event_store import EventStore
 from atlas.storage.graph_store import GraphStore
+from atlas.storage.state_store import StateStore
 
 BASE_DIR = Path.cwd()
 SESSIONS_DIR = BASE_DIR / "sessions"
 GRAPH_DIR = BASE_DIR / "graph"
 STATE_DIR = BASE_DIR / ".atlas"
+
+_store = StateStore(STATE_DIR)
 
 
 def get_event_store() -> EventStore:
@@ -28,53 +31,16 @@ def get_graph_store() -> GraphStore:
     return GraphStore(GRAPH_DIR)
 
 
-def _state_dir() -> Path:
-    d = STATE_DIR
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
-# Fields that must not change after initial creation (pre-registration integrity)
-_IMMUTABLE_FIELDS: dict[str, set[str]] = {
-    "hypotheses": {"claim", "rationale", "falsification_criteria", "significance_threshold"},
-    "experiments": {"hypothesis_id", "description", "method", "success_criteria", "failure_criteria", "parameters"},
-}
-
-
 def _save_obj(kind: str, obj_id: str, data: dict) -> None:
-    d = _state_dir() / kind
-    d.mkdir(exist_ok=True)
-    path = d / f"{obj_id}.json"
-
-    # Enforce immutability of pre-registered fields
-    if path.exists() and kind in _IMMUTABLE_FIELDS:
-        with open(path) as f:
-            existing = json.load(f)
-        for field in _IMMUTABLE_FIELDS[kind]:
-            if field in existing and field in data and str(existing[field]) != str(data[field]):
-                raise ValueError(f"Cannot modify pre-registered field '{field}' on {kind}/{obj_id}")
-
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
+    _store.save(kind, obj_id, data)
 
 
 def _load_obj(kind: str, obj_id: str) -> dict | None:
-    p = _state_dir() / kind / f"{obj_id}.json"
-    if p.exists():
-        with open(p) as f:
-            return json.load(f)
-    return None
+    return _store.load(kind, obj_id)
 
 
 def _list_objs(kind: str) -> list[dict]:
-    d = _state_dir() / kind
-    if not d.exists():
-        return []
-    objs = []
-    for p in sorted(d.glob("*.json")):
-        with open(p) as f:
-            objs.append(json.load(f))
-    return objs
+    return _store.list_all(kind)
 
 
 def _active_cycle() -> ResearchCycle | None:

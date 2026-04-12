@@ -139,11 +139,12 @@ src/atlas/
 │   ├── signals.py      # Market data signal detectors (regime change, autocorrelation, mean reversion, volume)
 │   └── hypotheses.py   # Signal→Hypothesis converters + graph gap analysis
 ├── analysis/         # Experiment execution
-│   ├── backtest.py     # Vectorized backtest: signals + prices → returns/Sharpe/drawdown
-│   └── statistics.py   # Sharpe significance, t-test, bootstrap CI (honest about iid assumptions)
+│   ├── backtest.py     # Vectorized backtest with fee model + anchored walk-forward validation
+│   └── statistics.py   # Sharpe significance, t-test, block bootstrap CI (two-sided, preserves serial dependence)
 ├── data/
 │   └── market.py       # ccxt wrapper with CSV cache (key includes exchange_id)
 ├── storage/
+│   ├── state_store.py  # Shared state management with pre-registration immutability
 │   ├── event_store.py  # Append-only JSONL per session
 │   └── graph_store.py  # Causal graph JSON persistence
 ├── runner.py         # AutonomousRunner — the production loop (scan→generate→test→evaluate→decide)
@@ -152,7 +153,8 @@ src/atlas/
 
 ### Key Design Decisions (settled, don't re-derive)
 - **Hypothesis IDs are SHA-256 hashes of the claim text.** This gives durable identity across cycles — same claim always gets same ID, evidence accumulates. See `_claim_hash()` in `runner.py`.
-- **Signals are scanned on in-sample data only (first 70%).** OOS (last 30%) is never seen during signal detection. This prevents the OOS contamination that Codex flagged in review #2.
+- **Walk-forward validation replaces single 70/30 split.** Anchored expanding window with 5 OOS folds. Concatenated OOS returns used for statistical tests. Signal scan still restricted to training data only.
+- **Fee model: 26 bps (Kraken taker) deducted on every position change.** One-way cost of `fee_bps / 10_000` per position change; a full round trip costs 52 bps. Default 0 for unit tests, 26 in runner.
 - **Bonferroni correction is applied per cycle.** Alpha is divided by the number of hypotheses tested in a cycle. See `generate_hypotheses()` in `runner.py`.
 - **Evidence quality requires BOTH Sharpe significance AND bootstrap significance** for "strong" classification. Single-test significance only earns "moderate".
 - **Promotion gate blocks on ANY strong contradictory evidence** and requires evidence from distinct experiments (not duplicate recordings).
@@ -195,19 +197,37 @@ Two Codex reviews completed. All critical and high findings addressed.
 | 2 | Critical | OOS contaminated by signal scan | **Fixed** — scan IS only |
 | 3 | High | No multiple testing correction | **Fixed** — Bonferroni |
 | 4 | High | Promotion gate weaker than documented | **Fixed** — distinct experiments + contradictions block |
-| 5 | Medium | Split-brain state between CLI and runner | Known gap — runner bypasses CLI immutability guard |
+| 5 | Medium | Split-brain state between CLI and runner | **Fixed** — shared `StateStore` with immutability enforcement |
+
+### Review #3 (state store + tests + block bootstrap) — 4 findings
+| # | Severity | Finding | Status |
+|---|----------|---------|--------|
+| 1 | Critical | Bonferroni `_bonferroni_n` is process-local, lost on restart | **Fixed** — persisted as `bonferroni_n` and `adjusted_alpha` in experiment parameters |
+| 2 | High | StateStore read-check-write has no locking (concurrent access) | Deferred — single-process for now |
+| 3 | High | Immutability guard bypassable by omitting fields from save data | **Fixed** — omission of existing immutable fields now raises ValueError |
+| 4 | High | Bootstrap one-sided: only tests positive Sharpe, never flags negative strategies | **Fixed** — two-sided p-value and CI-excludes-zero significance |
+
+### Review #4 (fee model + walk-forward) — 6 findings
+| # | Severity | Finding | Status |
+|---|----------|---------|--------|
+| 1 | Critical | Walk-forward computes unused train_signals, doesn't carry fitted state to OOS | **Fixed** — removed unused train_signals (current signal builders are stateless rolling indicators) |
+| 2 | High | Fee model double-charges: 2*fee_bps per change instead of 1*fee_bps | **Fixed** — now charges fee_bps/10_000 per position change (one-way) |
+| 3 | High | mean_oos_sharpe disagrees with concatenated-returns Sharpe used in stat tests | **Fixed** — added aggregate_oos_sharpe from concatenated returns, used for decisions |
+| 4 | High | StateStore no file locking for concurrent access | Deferred — single-process for now |
+| 5 | Medium-High | Bootstrap p-value not centered on null (resamples from empirical dist with mean) | Known limitation — bootstrap CI used alongside parametric test, not alone |
+| 6 | Medium | Fold size guard (10 bars) below signal warm-up requirements (20-50 bars) | **Fixed** — raised minimum to 50 bars per fold |
 
 ## Known Gaps & Next Steps (Priority Order)
 
-### Immediate (next session)
-1. **Runner should use shared state management with CLI.** Extract `_save_obj` with immutability guard into `storage/` module so both paths enforce the same rules.
-2. **Tests.** No test suite exists. Need: model validation, backtest math, statistical test correctness, signal detector behavior, promotion gate logic.
-3. **Block bootstrap.** Current iid bootstrap destroys serial dependence. Use stationary block bootstrap (`arch` package or manual) for honest Sharpe CIs on crypto returns.
+### Completed
+1. ~~**Runner should use shared state management with CLI.**~~ **Done** — `storage/state_store.py` with immutability enforcement, used by both CLI and runner. Bonferroni adjustment no longer mutates the pre-registered `significance_threshold` on the hypothesis model.
+2. ~~**Tests.**~~ **Done** — 47 tests across 5 files: state store immutability, backtest math (fees + walk-forward), statistical tests, signal detectors, promotion gate logic.
+3. ~~**Block bootstrap.**~~ **Done** — Stationary block bootstrap with geometric block lengths (default block_size=sqrt(n)). Preserves serial dependence in crypto returns.
 
 ### Near-term (Phase 2)
 4. **More signal detectors.** On-chain metrics, cross-asset correlations, funding rate signals, orderbook imbalance. The signal→hypothesis pipeline is modular — add new detectors in `generation/signals.py`.
-5. **Walk-forward validation** instead of simple 70/30 split. Expanding window or rolling window backtests.
-6. **Fee/slippage model in backtest.** At minimum: fixed fee per trade, market impact estimate.
+5. ~~**Walk-forward validation**~~ **Done** — Anchored expanding window with 5 OOS folds. Runner uses walk-forward instead of single 70/30 split. Statistical tests run on concatenated OOS returns.
+6. ~~**Fee/slippage model in backtest.**~~ **Done** — `fee_bps` parameter on `run_backtest()` and `walk_forward_backtest()`. Deducts one-way cost per position change. Runner passes 26 bps (Kraken taker).
 7. **Automated evidence verification.** Link experiment statistical output directly to evidence records instead of relying on quality classification logic.
 8. **Systemd service** for continuous autonomous operation.
 9. **Cache invalidation.** Market data CSVs are cached indefinitely — need freshness policy for repeated cycles.

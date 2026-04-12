@@ -95,15 +95,46 @@ def bootstrap_sharpe(
     periods_per_year: float = 365 * 6,
     n_bootstrap: int = 10000,
     alpha: float = 0.05,
+    block_size: int | None = None,
 ) -> SignificanceResult:
-    """Bootstrap confidence interval for Sharpe ratio."""
+    """Stationary block bootstrap confidence interval for Sharpe ratio.
+
+    Uses random-length contiguous blocks (geometric distribution) to preserve
+    serial dependence in returns. This is more honest than iid resampling for
+    financial time series, where returns exhibit autocorrelation and volatility
+    clustering.
+
+    Args:
+        block_size: Expected block length. Defaults to int(sqrt(n)), a common
+            choice for stationary block bootstrap. Larger values preserve more
+            serial structure but reduce resampling variation.
+    """
     rng = np.random.default_rng(42)
     n = len(returns)
     values = returns.values
 
+    if block_size is None:
+        block_size = max(1, int(np.sqrt(n)))
+
+    # Probability of ending a block at each step (geometric distribution)
+    p_end = 1.0 / block_size
+
     sharpes = np.empty(n_bootstrap)
     for i in range(n_bootstrap):
-        sample = rng.choice(values, size=n, replace=True)
+        # Build sample by concatenating random-length contiguous blocks
+        sample = np.empty(n)
+        pos = 0
+        while pos < n:
+            # Random start position (wrap-around for stationarity)
+            start = rng.integers(0, n)
+            # Geometric block length
+            length = rng.geometric(p_end)
+            length = min(length, n - pos)
+            # Extract block with wrap-around
+            for j in range(length):
+                sample[pos] = values[(start + j) % n]
+                pos += 1
+
         mean_s = sample.mean()
         std_s = sample.std()
         sharpes[i] = mean_s / std_s * np.sqrt(periods_per_year) if std_s > 0 else 0.0
@@ -112,15 +143,27 @@ def bootstrap_sharpe(
     ci_lower = float(np.percentile(sharpes, 100 * alpha / 2))
     ci_upper = float(np.percentile(sharpes, 100 * (1 - alpha / 2)))
 
-    # p-value: proportion of bootstrap samples with Sharpe <= 0
-    p_value = float(np.mean(sharpes <= 0))
+    # Two-sided p-value: test whether Sharpe is significantly different from zero
+    # This allows the bootstrap to flag both positive AND negative strategies
+    p_positive = float(np.mean(sharpes <= 0))  # P(Sharpe <= 0)
+    p_negative = float(np.mean(sharpes >= 0))  # P(Sharpe >= 0)
+    p_value = 2.0 * min(p_positive, p_negative)  # two-sided
+    p_value = min(p_value, 1.0)
+
+    # Significant if CI excludes zero in either direction
+    ci_excludes_zero = ci_lower > 0 or ci_upper < 0
 
     return SignificanceResult(
-        test_name="bootstrap_sharpe",
+        test_name="block_bootstrap_sharpe",
         statistic=float(point_sharpe),
         p_value=p_value,
-        significant=ci_lower > 0,
+        significant=ci_excludes_zero,
         ci_lower=ci_lower,
         ci_upper=ci_upper,
-        details={"point_sharpe": float(point_sharpe), "n_bootstrap": n_bootstrap, "n": n},
+        details={
+            "point_sharpe": float(point_sharpe),
+            "n_bootstrap": n_bootstrap,
+            "n": n,
+            "block_size": block_size,
+        },
     )

@@ -30,14 +30,15 @@ def from_autocorrelation_signal(signal: Signal, symbol: str, timeframe: str) -> 
 
 def from_regime_signal(signal: Signal, symbol: str, timeframe: str) -> Hypothesis:
     """Generate hypothesis from volatility regime signal."""
-    ratio = signal.metadata["vol_ratio"]
-    regime = "expansion" if ratio > 1.0 else "compression"
+    is_expansion = "n_expansions" in signal.metadata
+    regime = "expansion" if is_expansion else "compression"
+    window = signal.metadata["window"]
 
     return Hypothesis(
-        claim=f"Volatility {regime} in {symbol} {timeframe} predicts directional price movement "
-              f"in the following {signal.metadata['window']} periods",
-        rationale=f"Vol ratio = {ratio:.2f}. Regime changes often precede trending moves "
-                  f"as market participants adjust positioning.",
+        claim=f"Volatility {regime} events in {symbol} {timeframe} predict directional price movement "
+              f"in the following {window} periods",
+        rationale=f"Detected recurrent volatility {regime} patterns. "
+                  f"Regime changes often precede trending moves as market participants adjust positioning.",
         falsification_criteria=f"Returns following {regime} events do not differ significantly "
                                f"from unconditional returns (p > alpha)",
         tags=[symbol.replace("/", "_").lower(), timeframe, "volatility", "regime"],
@@ -45,16 +46,16 @@ def from_regime_signal(signal: Signal, symbol: str, timeframe: str) -> Hypothesi
 
 
 def from_mean_reversion_signal(signal: Signal, symbol: str, timeframe: str) -> Hypothesis:
-    """Generate hypothesis from mean-reversion signal."""
-    z = signal.metadata["zscore"]
+    """Generate hypothesis from structural mean-reversion signal."""
     window = signal.metadata["window"]
-    direction = "below" if z < 0 else "above"
+    reversion_rate = signal.metadata.get("reversion_rate", 0)
+    n_extremes = signal.metadata.get("n_extremes", 0)
 
     return Hypothesis(
         claim=f"{symbol} reverts to {window}-period mean after extreme deviations "
               f"(|z| > 2.0) within {window // 2} periods",
-        rationale=f"Current z-score = {z:.1f}σ {direction} MA. "
-                  f"If mean-reversion holds, expect price convergence.",
+        rationale=f"Observed {reversion_rate:.0%} reversion rate across {n_extremes} extreme events. "
+                  f"If structural, a mean-reversion strategy should capture this.",
         falsification_criteria=f"Buy-the-dip (z < -2) / sell-the-spike (z > 2) strategy "
                                f"does not produce significant positive returns (p > alpha)",
         tags=[symbol.replace("/", "_").lower(), timeframe, "mean_reversion", f"ma_{window}"],
@@ -62,18 +63,108 @@ def from_mean_reversion_signal(signal: Signal, symbol: str, timeframe: str) -> H
 
 
 def from_volume_signal(signal: Signal, symbol: str, timeframe: str) -> Hypothesis:
-    """Generate hypothesis from volume anomaly signal."""
-    z = signal.metadata["volume_zscore"]
-    window = signal.metadata["window"]
+    """Generate hypothesis from volume-return relationship signal."""
+    n_spikes = signal.metadata.get("n_spikes", 0)
+    ratio = signal.metadata.get("spike_abs_return", 0) / max(signal.metadata.get("normal_abs_return", 1), 1e-10)
 
     return Hypothesis(
-        claim=f"Volume spikes (>{window}-period average + 3σ) in {symbol} {timeframe} "
-              f"predict increased volatility and directional movement",
-        rationale=f"Volume z-score = {z:.1f}. Unusual volume often signals informed trading "
-                  f"or structural breaks.",
+        claim=f"Volume spikes in {symbol} {timeframe} predict {ratio:.1f}x larger price moves",
+        rationale=f"Observed {n_spikes} volume spike events where subsequent absolute returns "
+                  f"were significantly larger than normal. If structural, this can be traded.",
         falsification_criteria=f"Post-spike absolute returns do not differ significantly "
                                f"from normal-volume absolute returns (p > alpha)",
         tags=[symbol.replace("/", "_").lower(), timeframe, "volume", "anomaly"],
+    )
+
+
+def from_momentum_persistence_signal(signal: Signal, symbol: str, timeframe: str) -> Hypothesis:
+    """Generate hypothesis from momentum persistence signal."""
+    lookback = signal.metadata["lookback"]
+    hit_rate = signal.metadata["hit_rate"]
+    direction = signal.metadata["direction"]
+
+    strategy = "momentum" if direction == "momentum" else "contrarian"
+    return Hypothesis(
+        claim=f"{symbol} {timeframe} shows {lookback}-bar {direction} ({hit_rate:.0%} hit rate), "
+              f"enabling a {strategy} strategy",
+        rationale=f"Detected {hit_rate:.1%} directional persistence over {lookback}-bar windows. "
+                  f"If structural, a {strategy} strategy following the {lookback}-bar trend should profit.",
+        falsification_criteria=f"{strategy.capitalize()} strategy based on {lookback}-bar returns "
+                               f"does not produce significant positive Sharpe (p > alpha)",
+        tags=[symbol.replace("/", "_").lower(), timeframe, direction,
+              "momentum" if direction == "momentum" else "mean_reversion", f"lookback_{lookback}"],
+    )
+
+
+def from_return_skew_signal(signal: Signal, symbol: str, timeframe: str) -> Hypothesis:
+    """Generate hypothesis from return skew signal."""
+    skew = signal.metadata["skew"]
+    direction = signal.metadata["direction"]
+
+    if direction == "positive":
+        strategy = "buy dips and hold for asymmetric upside"
+    else:
+        strategy = "fade rallies to exploit negative skew (crash risk premium)"
+
+    return Hypothesis(
+        claim=f"{symbol} {timeframe} returns exhibit significant {direction} skew ({skew:.2f}), "
+              f"enabling a skew-harvesting strategy",
+        rationale=f"Return distribution shows {direction} skew = {skew:.3f}. "
+                  f"If persistent, this represents a structural edge: {strategy}.",
+        falsification_criteria=f"Strategy exploiting {direction} skew does not produce "
+                               f"significant positive Sharpe (p > alpha)",
+        tags=[symbol.replace("/", "_").lower(), timeframe, "skew", direction],
+    )
+
+
+def from_volatility_clustering_signal(signal: Signal, symbol: str, timeframe: str) -> Hypothesis:
+    """Generate hypothesis from volatility clustering signal."""
+    ac1 = signal.metadata["ac_lag1"]
+    return Hypothesis(
+        claim=f"{symbol} {timeframe} shows volatility clustering (|r| autocorr={ac1:.3f}), "
+              f"enabling a vol-scaled position strategy",
+        rationale=f"Absolute returns show strong autocorrelation ({ac1:.3f}), meaning high volatility "
+                  f"periods persist. Reducing position size after vol spikes and increasing after calm "
+                  f"periods should improve risk-adjusted returns.",
+        falsification_criteria="Vol-scaled strategy does not produce significantly better "
+                               "Sharpe than buy-and-hold (p > alpha)",
+        tags=[symbol.replace("/", "_").lower(), timeframe, "volatility_clustering", "vol_scaling"],
+    )
+
+
+def from_cross_asset_spread_signal(signal: Signal, symbol: str, timeframe: str) -> Hypothesis:
+    """Generate hypothesis from cross-asset spread signal."""
+    sym_a = signal.metadata["symbol_a"]
+    sym_b = signal.metadata["symbol_b"]
+    rate = signal.metadata["reversion_rate"]
+    window = signal.metadata["window"]
+    return Hypothesis(
+        claim=f"{sym_a}/{sym_b} spread reverts to mean after extreme deviations "
+              f"({rate:.0%} reversion rate, {window}-period window)",
+        rationale=f"The price ratio of {sym_a} to {sym_b} mean-reverts because both assets "
+                  f"share common market factors. Extremes reflect temporary dislocations.",
+        falsification_criteria=f"Spread mean-reversion strategy (long underperformer, short outperformer "
+                               f"at |z| > 1.5) does not produce significant positive Sharpe (p > alpha)",
+        tags=[sym_a.replace("/", "_").lower(), sym_b.replace("/", "_").lower(),
+              timeframe, "spread", "pairs_trading", f"window_{window}"],
+    )
+
+
+def from_lead_lag_signal(signal: Signal, symbol: str, timeframe: str) -> Hypothesis:
+    """Generate hypothesis from lead-lag signal."""
+    leader = signal.metadata["leader"]
+    follower = signal.metadata["follower"]
+    corr = signal.metadata["correlation"]
+    return Hypothesis(
+        claim=f"{leader} leads {follower} by 1 period at {timeframe} (corr={corr:.4f}), "
+              f"enabling a cross-asset momentum strategy",
+        rationale=f"Detected significant lead-lag: {leader} returns predict {follower} returns "
+                  f"one period later (r={corr:.4f}). Likely due to differential liquidity or "
+                  f"information processing speed.",
+        falsification_criteria=f"Strategy trading {follower} based on {leader}'s prior return "
+                               f"does not produce significant positive Sharpe (p > alpha)",
+        tags=[leader.replace("/", "_").lower(), follower.replace("/", "_").lower(),
+              timeframe, "lead_lag", "cross_asset_momentum"],
     )
 
 
@@ -81,7 +172,12 @@ _SIGNAL_GENERATORS = {
     "autocorrelation_scan": from_autocorrelation_signal,
     "rolling_vol_ratio": from_regime_signal,
     "zscore_mean_reversion": from_mean_reversion_signal,
-    "volume_zscore": from_volume_signal,
+    "volume_return_relationship": from_volume_signal,
+    "momentum_persistence": from_momentum_persistence_signal,
+    "return_skew": from_return_skew_signal,
+    "volatility_clustering": from_volatility_clustering_signal,
+    "cross_asset_spread": from_cross_asset_spread_signal,
+    "lead_lag": from_lead_lag_signal,
 }
 
 

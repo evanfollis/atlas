@@ -9,3 +9,4 @@ reports/
 methodology.jsonl
 *.pyc
 .pytest_cache/
+.atlas/

@@ -12,11 +12,14 @@ from pathlib import Path
 
 import pandas as pd
 
-from atlas.analysis.backtest import run_backtest
+from atlas.analysis.backtest import run_backtest, walk_forward_backtest
 from atlas.analysis.statistics import bootstrap_sharpe, mean_return_test, sharpe_significance
+from atlas.data.alternative import AlternativeData, align_to_price
 from atlas.data.market import MarketData
+from atlas.generation.composite_hypotheses import COMPOSITE_GENERATORS
+from atlas.generation.composite_signals import scan_composite
 from atlas.generation.hypotheses import from_graph_gaps, from_signal
-from atlas.generation.signals import scan_all
+from atlas.generation.signals import scan_all, detect_cross_asset_spread, detect_lead_lag
 from atlas.models.events import EventType, SessionEvent
 from atlas.models.evidence import Evidence, EvidenceClass, EvidenceDirection, EvidenceQuality
 from atlas.models.experiment import Experiment, ExperimentStatus
@@ -25,6 +28,7 @@ from atlas.models.primitive import ReasoningPrimitive
 from atlas.models.session import CycleOutcome, CycleStatus, ResearchCycle
 from atlas.storage.event_store import EventStore
 from atlas.storage.graph_store import GraphStore
+from atlas.storage.state_store import StateStore
 
 log = logging.getLogger("atlas.runner")
 
@@ -32,8 +36,10 @@ log = logging.getLogger("atlas.runner")
 DEFAULT_UNIVERSE = [
     ("BTC/USDT", "4h"),
     ("ETH/USDT", "4h"),
-    ("BTC/USDT", "1d"),
-    ("ETH/USDT", "1d"),
+    ("SOL/USDT", "4h"),
+    ("BTC/USDT", "1h"),
+    ("ETH/USDT", "1h"),
+    ("SOL/USDT", "1h"),
 ]
 
 
@@ -45,36 +51,23 @@ def _claim_hash(claim: str) -> str:
 class AutonomousRunner:
     """Runs the full research loop autonomously."""
 
-    def __init__(self, base_dir: Path, exchange_id: str = "kraken") -> None:
+    def __init__(self, base_dir: Path, exchange_id: str = "bitstamp") -> None:
         self.base_dir = base_dir
-        self.state_dir = base_dir / ".atlas"
+        self.state = StateStore(base_dir / ".atlas")
         self.market = MarketData(cache_dir=base_dir / "data", exchange_id=exchange_id)
+        self.alt_data = AlternativeData(cache_dir=base_dir / "data")
         self.events = EventStore(base_dir / "sessions")
         self.graph_store = GraphStore(base_dir / "graph")
         self.methodology_log = base_dir / "methodology.jsonl"
 
     def _save_obj(self, kind: str, obj_id: str, data: dict) -> None:
-        d = self.state_dir / kind
-        d.mkdir(parents=True, exist_ok=True)
-        with open(d / f"{obj_id}.json", "w") as f:
-            json.dump(data, f, indent=2, default=str)
+        self.state.save(kind, obj_id, data)
 
     def _load_obj(self, kind: str, obj_id: str) -> dict | None:
-        p = self.state_dir / kind / f"{obj_id}.json"
-        if p.exists():
-            with open(p) as f:
-                return json.load(f)
-        return None
+        return self.state.load(kind, obj_id)
 
     def _list_objs(self, kind: str) -> list[dict]:
-        d = self.state_dir / kind
-        if not d.exists():
-            return []
-        objs = []
-        for p in sorted(d.glob("*.json")):
-            with open(p) as f:
-                objs.append(json.load(f))
-        return objs
+        return self.state.list_all(kind)
 
     def _log_methodology(self, entry: dict) -> None:
         entry["timestamp"] = datetime.now(timezone.utc).isoformat()
@@ -106,7 +99,7 @@ class AutonomousRunner:
         results = []
         for symbol, timeframe in DEFAULT_UNIVERSE:
             try:
-                df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=500)
+                df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=10000)
                 split_idx = int(len(df) * oos_cutoff)
                 is_df = df.iloc[:split_idx]
 
@@ -127,6 +120,73 @@ class AutonomousRunner:
                     })
             except Exception as e:
                 log.warning("Failed to scan %s %s: %s", symbol, timeframe, e)
+
+        # Cross-asset detectors: compare pairs at the same timeframe
+        is_data: dict[tuple[str, str], pd.DataFrame] = {}
+        for symbol, timeframe, _, df in results:
+            split_idx = int(len(df) * oos_cutoff)
+            is_data[(symbol, timeframe)] = df.iloc[:split_idx]
+
+        # Also load pairs not yet in results
+        for symbol, timeframe in DEFAULT_UNIVERSE:
+            if (symbol, timeframe) not in is_data:
+                try:
+                    df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=10000)
+                    is_data[(symbol, timeframe)] = df.iloc[:int(len(df) * oos_cutoff)]
+                except Exception:
+                    pass
+
+        timeframes_seen = set()
+        for (sym, tf) in is_data:
+            timeframes_seen.add(tf)
+
+        cross_signals = []
+        for tf in timeframes_seen:
+            pairs_at_tf = [(sym, df) for (sym, t), df in is_data.items() if t == tf]
+            for i, (sym_a, df_a) in enumerate(pairs_at_tf):
+                for sym_b, df_b in pairs_at_tf[i + 1:]:
+                    cross_signals.extend(detect_cross_asset_spread(
+                        df_a["close"], df_b["close"], sym_a, sym_b,
+                    ))
+                    ret_a = df_a["close"].pct_change().dropna()
+                    ret_b = df_b["close"].pct_change().dropna()
+                    cross_signals.extend(detect_lead_lag(ret_a, ret_b, sym_a, sym_b))
+                    cross_signals.extend(detect_lead_lag(ret_b, ret_a, sym_b, sym_a))
+
+        # Composite signals: multi-source (sentiment, on-chain, mining + price)
+        composite_signals = []
+        try:
+            alt_sources = self.alt_data.fetch_all()
+            if alt_sources:
+                for symbol, timeframe, _, df in results:
+                    split_idx = int(len(df) * oos_cutoff)
+                    is_prices = df["close"].iloc[:split_idx]
+                    csigs = scan_composite(is_prices, alt_sources)
+                    for s in csigs:
+                        s.symbol = symbol
+                        s.timeframe = timeframe
+                    composite_signals.extend(csigs)
+                log.info("Found %d composite signals from %d alt sources",
+                         len(composite_signals), len(alt_sources))
+        except Exception as e:
+            log.warning("Composite signal scan failed: %s", e)
+
+        extra_signals = cross_signals + composite_signals
+        if extra_signals:
+            # Attach extra signals to the BTC/USDT 4h anchor
+            anchor = ("BTC/USDT", "4h")
+            anchor_found = False
+            for idx, (sym, tf, sigs, df) in enumerate(results):
+                if (sym, tf) == anchor:
+                    results[idx] = (sym, tf, sigs + extra_signals, df)
+                    anchor_found = True
+                    break
+            if not anchor_found and results:
+                sym, tf, sigs, df = results[0]
+                results[0] = (sym, tf, sigs + extra_signals, df)
+            log.info("Found %d cross-asset + %d composite signals",
+                     len(cross_signals), len(composite_signals))
+
         return results
 
     def generate_hypotheses(self, signal_results: list[tuple[str, str, list, pd.DataFrame]]) -> list[Hypothesis]:
@@ -135,9 +195,16 @@ class AutonomousRunner:
 
         for symbol, timeframe, signals, _ in signal_results:
             for signal in signals:
-                h = from_signal(signal, symbol, timeframe)
-                if h:
-                    candidates.append(h)
+                # Try composite generators first, then single-source
+                gen = COMPOSITE_GENERATORS.get(signal.method)
+                if gen:
+                    sym = signal.symbol or symbol
+                    tf = signal.timeframe or timeframe
+                    candidates.append(gen(signal, sym, tf))
+                else:
+                    h = from_signal(signal, symbol, timeframe)
+                    if h:
+                        candidates.append(h)
 
         # Graph-driven generation
         graph = self.graph_store.load()
@@ -164,13 +231,21 @@ class AutonomousRunner:
                 h.id = _claim_hash(h.claim)
                 unique.append(h)
 
-        # Limit per cycle
-        selected = unique[:3]
+        # Prioritize composite (multi-source) hypotheses — they trade rarely
+        # and represent the most novel research direction
+        composite = [h for h in unique if "composite" in h.tags]
+        single_source = [h for h in unique if "composite" not in h.tags]
+        prioritized = composite + single_source
 
-        # Apply Bonferroni correction: adjust alpha for number of tests this cycle
+        # Limit per cycle (balance thoroughness vs Bonferroni penalty)
+        selected = prioritized[:5]
+
+        # Apply Bonferroni correction: compute adjusted alpha per cycle
+        # but do NOT mutate h.significance_threshold (pre-registered, immutable)
+        # Store on each hypothesis object for this cycle (not persisted on model)
         n_tests = max(1, len(selected))
         for h in selected:
-            h.significance_threshold = h.significance_threshold / n_tests
+            h._bonferroni_n = n_tests  # type: ignore[attr-defined]
 
         self._log_methodology({
             "phase": "hypothesis_generation",
@@ -178,13 +253,123 @@ class AutonomousRunner:
             "unique": len(unique),
             "selected": len(selected),
             "bonferroni_n": n_tests,
-            "adjusted_alpha": selected[0].significance_threshold if selected else None,
+            "adjusted_alpha": (selected[0].significance_threshold / n_tests) if selected else None,
         })
 
         return selected
 
+    def _build_composite_signal(self, h: Hypothesis, is_df: pd.DataFrame) -> pd.Series | None:
+        """Build regime-holding signal from composite hypothesis.
+
+        Returns None if required alt data is unavailable.
+        These signals trade rarely — enter on trigger, hold for N bars, then flat.
+        """
+        prices = is_df["close"]
+        holding = 20
+        for tag in h.tags:
+            if tag.startswith("hold_"):
+                holding = int(tag.split("_")[1])
+
+        try:
+            alt_sources = self.alt_data.fetch_all()
+        except Exception:
+            return None
+
+        signals = pd.Series(0, index=prices.index)
+
+        if "fear_capitulation" in h.tags:
+            fg = alt_sources.get("fear_greed")
+            if fg is None or "fear_greed" not in fg.columns:
+                return None
+            fg_aligned = fg["fear_greed"].reindex(prices.index, method="ffill").fillna(50)
+            rolling_high = prices.rolling(60).max()
+            drawdown = (prices - rolling_high) / rolling_high
+            trigger = (fg_aligned < 25) & (drawdown < -0.10)
+            signals = self._apply_regime_hold(trigger, holding, direction=1)
+
+        elif "greed_euphoria" in h.tags:
+            fg = alt_sources.get("fear_greed")
+            if fg is None or "fear_greed" not in fg.columns:
+                return None
+            fg_aligned = fg["fear_greed"].reindex(prices.index, method="ffill").fillna(50)
+            rolling_low = prices.rolling(60).min()
+            rally = (prices - rolling_low) / rolling_low
+            trigger = (fg_aligned > 75) & (rally > 0.15)
+            signals = self._apply_regime_hold(trigger, holding, direction=-1)
+
+        elif "onchain_divergence" in h.tags:
+            ov = alt_sources.get("onchain_volume")
+            if ov is None or "onchain_volume_usd" not in ov.columns:
+                return None
+            ov_aligned = ov["onchain_volume_usd"].reindex(prices.index, method="ffill")
+            px_trend = prices.pct_change(20)
+            ov_trend = ov_aligned.pct_change(20)
+            if "bullish" in h.tags:
+                trigger = (px_trend < -0.10) & (ov_trend > 0.10)
+                signals = self._apply_regime_hold(trigger, holding, direction=1)
+            else:
+                trigger = (px_trend > 0.10) & (ov_trend < -0.10)
+                signals = self._apply_regime_hold(trigger, holding, direction=-1)
+
+        elif "miner_capitulation" in h.tags:
+            hr = alt_sources.get("hashrate")
+            if hr is None or "hashrate" not in hr.columns:
+                return None
+            hr_aligned = hr["hashrate"].reindex(prices.index, method="ffill")
+            hr_peak = hr_aligned.rolling(30).max()
+            hr_dd = (hr_aligned - hr_peak) / hr_peak
+            was_down = hr_dd.rolling(30).min() < -0.10
+            recovering = hr_dd > -0.03
+            trigger = was_down & recovering & (~(was_down & recovering).shift(1).fillna(False))
+            signals = self._apply_regime_hold(trigger, holding, direction=1)
+
+        elif "regime_confluence" in h.tags:
+            fg = alt_sources.get("fear_greed")
+            ov = alt_sources.get("onchain_volume")
+            if fg is None or ov is None:
+                return None
+            fg_aligned = fg["fear_greed"].reindex(prices.index, method="ffill").fillna(50)
+            ov_aligned = ov["onchain_volume_usd"].reindex(prices.index, method="ffill")
+            ov_trend = ov_aligned.pct_change(20)
+            if "bullish" in h.tags:
+                px_low = prices.rolling(60).min()
+                trigger = (fg_aligned < 25) & (ov_trend > 0.05) & (prices <= px_low * 1.05)
+                signals = self._apply_regime_hold(trigger, holding, direction=1)
+            else:
+                px_high = prices.rolling(60).max()
+                trigger = (fg_aligned > 75) & (ov_trend < -0.05) & (prices >= px_high * 0.95)
+                signals = self._apply_regime_hold(trigger, holding, direction=-1)
+        else:
+            return None
+
+        return signals.reindex(prices.index).fillna(0)
+
+    @staticmethod
+    def _apply_regime_hold(trigger: pd.Series, holding_period: int, direction: int) -> pd.Series:
+        """Convert trigger events into held positions.
+
+        Enter on trigger, hold for holding_period bars, then go flat.
+        If a new trigger fires during a hold, extend the hold.
+        This produces sparse signals — only a few trades per year.
+        """
+        signals = pd.Series(0, index=trigger.index)
+        bars_remaining = 0
+        for i in range(len(trigger)):
+            if trigger.iloc[i]:
+                bars_remaining = holding_period
+            if bars_remaining > 0:
+                signals.iloc[i] = direction
+                bars_remaining -= 1
+        return signals
+
     def _build_signal_from_hypothesis(self, h: Hypothesis, is_df: pd.DataFrame) -> pd.Series:
         """Build a trading signal series using in-sample data only."""
+        # Try composite signal builder first
+        if "composite" in h.tags:
+            composite = self._build_composite_signal(h, is_df)
+            if composite is not None:
+                return composite
+
         prices = is_df["close"]
         returns = prices.pct_change().dropna()
 
@@ -197,6 +382,52 @@ class AutonomousRunner:
                 signals = (returns.rolling(lag).mean() > 0).astype(int).replace(0, -1)
             else:
                 signals = (returns.rolling(lag).mean() < 0).astype(int).replace(0, -1)
+        elif "momentum" in h.tags and any(t.startswith("lookback_") for t in h.tags):
+            lookback = 20
+            for tag in h.tags:
+                if tag.startswith("lookback_"):
+                    lookback = int(tag.split("_")[1])
+            rolling_ret = returns.rolling(lookback).sum()
+            if "reversal" in h.tags:
+                signals = -(rolling_ret > 0).astype(int).replace(0, -1)
+            else:
+                signals = (rolling_ret > 0).astype(int).replace(0, -1)
+        elif "vol_scaling" in h.tags:
+            # Volatility-scaled strategy: reduce position in high-vol, increase in low-vol
+            vol = returns.abs().rolling(20).mean()
+            vol_ma = vol.rolling(50).mean()
+            vol_ratio = (vol / vol_ma).reindex(prices.index).fillna(1.0)
+            signals = pd.Series(1, index=prices.index)  # default long
+            signals.loc[vol_ratio > 1.5] = 0    # step out in high vol
+            signals.loc[vol_ratio < 0.7] = 1    # full position in low vol
+        elif "pairs_trading" in h.tags:
+            # Pairs trading: use price z-score as proxy for spread dislocation
+            ma = prices.rolling(50).mean()
+            std = prices.rolling(50).std()
+            z = ((prices - ma) / std).reindex(prices.index).fillna(0)
+            signals = pd.Series(0, index=prices.index)
+            signals.loc[z < -1.5] = 1   # buy when spread is low
+            signals.loc[z > 1.5] = -1   # sell when spread is high
+        elif "lead_lag" in h.tags:
+            # Lead-lag: trade the follower based on the leader's return
+            # Since we only have the follower's data here, use its own lagged returns
+            # as a proxy (the signal builder gets the follower's data)
+            lag_ret = returns.shift(1).reindex(prices.index).fillna(0)
+            signals = pd.Series(0, index=prices.index)
+            signals.loc[lag_ret > 0] = 1
+            signals.loc[lag_ret < 0] = -1
+        elif "skew" in h.tags:
+            # Skew strategy: positive skew → buy dips, negative skew → fade rallies
+            ma = prices.rolling(20).mean()
+            std = prices.rolling(20).std()
+            z = (prices - ma) / std
+            signals = pd.Series(0, index=prices.index)
+            if "positive" in h.tags:
+                # Buy when below MA (dips), expecting asymmetric upside
+                signals[z < -1.0] = 1
+            else:
+                # Sell when above MA (rallies), expecting mean reversion / crash
+                signals[z > 1.0] = -1
         elif "mean_reversion" in h.tags:
             window = 20
             for tag in h.tags:
@@ -238,49 +469,48 @@ class AutonomousRunner:
         tf_periods = {"1h": 365 * 24, "4h": 365 * 6, "1d": 365, "1w": 52}
         periods_per_year = tf_periods.get(timeframe, 365 * 6)
 
+        # Bonferroni-adjusted alpha: persisted on the experiment so it survives restarts
+        bonferroni_n = getattr(h, "_bonferroni_n", 1)
+        adjusted_alpha = h.significance_threshold / bonferroni_n
+
         exp = Experiment(
             hypothesis_id=h.id,
             description=f"Backtest {h.claim[:80]} on {symbol} {timeframe}",
             method="backtest",
-            parameters={"symbol": symbol, "timeframe": timeframe, "lookback": len(df)},
-            success_criteria=f"OOS Sharpe > 0 with p < {h.significance_threshold:.4f} (Bonferroni-adjusted)",
-            failure_criteria=f"OOS Sharpe not significantly different from zero (p >= {h.significance_threshold:.4f})",
+            parameters={
+                "symbol": symbol, "timeframe": timeframe, "lookback": len(df),
+                "bonferroni_n": bonferroni_n, "adjusted_alpha": adjusted_alpha,
+            },
+            success_criteria=f"OOS Sharpe > 0 with p < {adjusted_alpha:.4f} (Bonferroni-adjusted)",
+            failure_criteria=f"OOS Sharpe not significantly different from zero (p >= {adjusted_alpha:.4f})",
         )
         self._save_obj("experiments", exp.id, exp.model_dump())
 
         try:
-            split_idx = int(len(df) * 0.7)
-            is_df = df.iloc[:split_idx]
-            oos_df = df.iloc[split_idx:]
+            # Walk-forward validation: expanding train window with 5 OOS folds
+            signal_builder = lambda sub_df: self._build_signal_from_hypothesis(h, sub_df)
+            wf = walk_forward_backtest(
+                df, signal_builder,
+                n_folds=5, train_ratio=0.7,
+                periods_per_year=periods_per_year, fee_bps=26,
+            )
 
-            # Build signal on in-sample ONLY
-            is_signals = self._build_signal_from_hypothesis(h, is_df)
-
-            # For OOS: apply the same signal logic to OOS data independently
-            # This means the signal parameters come from IS, but the signal
-            # values on OOS bars are computed from OOS data
-            oos_signals = self._build_signal_from_hypothesis(h, oos_df)
-
-            is_result = run_backtest(is_df["close"], is_signals, periods_per_year=periods_per_year)
-            oos_result = run_backtest(oos_df["close"], oos_signals, periods_per_year=periods_per_year)
-
-            # Statistical tests on OOS with Bonferroni-adjusted alpha
-            alpha = h.significance_threshold
-            oos_sharpe = sharpe_significance(oos_result.returns, alpha=alpha)
-            oos_mean = mean_return_test(oos_result.returns, alpha=alpha)
-            oos_boot = bootstrap_sharpe(oos_result.returns, periods_per_year=periods_per_year, alpha=alpha)
+            # Statistical tests on concatenated OOS returns with Bonferroni-adjusted alpha
+            alpha = adjusted_alpha
+            oos_sharpe = sharpe_significance(wf.oos_returns, periods_per_year=periods_per_year, alpha=alpha)
+            oos_mean = mean_return_test(wf.oos_returns, alpha=alpha)
+            oos_boot = bootstrap_sharpe(wf.oos_returns, periods_per_year=periods_per_year, alpha=alpha)
 
             exp.status = ExperimentStatus.COMPLETED
             exp.results = {
-                "in_sample": {
-                    "sharpe": is_result.sharpe_ratio,
-                    "total_return": is_result.total_return,
-                    "max_drawdown": is_result.max_drawdown,
+                "walk_forward": {
+                    "n_folds": wf.n_folds,
+                    "mean_oos_sharpe": wf.aggregate_oos_sharpe,
+                    "folds": wf.folds,
                 },
                 "out_of_sample": {
-                    "sharpe": oos_result.sharpe_ratio,
-                    "total_return": oos_result.total_return,
-                    "max_drawdown": oos_result.max_drawdown,
+                    "sharpe": wf.aggregate_oos_sharpe,
+                    "total_return": float((1 + wf.oos_returns).prod() - 1),
                     "sharpe_p": oos_sharpe.p_value,
                     "mean_p": oos_mean.p_value,
                     "bootstrap_ci": [oos_boot.ci_lower, oos_boot.ci_upper],
@@ -293,7 +523,7 @@ class AutonomousRunner:
             oos = exp.results["out_of_sample"]
             # Require BOTH sharpe and bootstrap to agree for strong
             both_significant = oos_sharpe.significant and oos_boot.significant
-            is_positive = oos_result.sharpe_ratio > 0
+            is_positive = wf.aggregate_oos_sharpe > 0
 
             if both_significant and is_positive:
                 quality = EvidenceQuality.STRONG
@@ -301,7 +531,7 @@ class AutonomousRunner:
             elif is_positive and (oos_sharpe.significant or oos_boot.significant):
                 quality = EvidenceQuality.MODERATE
                 direction = EvidenceDirection.SUPPORTS
-            elif oos_result.sharpe_ratio < -0.5 and both_significant:
+            elif wf.aggregate_oos_sharpe < -0.5 and both_significant:
                 quality = EvidenceQuality.STRONG
                 direction = EvidenceDirection.CONTRADICTS
             elif not is_positive and (oos_sharpe.p_value < 0.15 or oos_boot.p_value < 0.15):
@@ -317,15 +547,15 @@ class AutonomousRunner:
                 evidence_class=EvidenceClass.OUT_OF_SAMPLE_TEST,
                 quality=quality,
                 direction=direction,
-                summary=f"OOS Sharpe={oos_result.sharpe_ratio:.2f} (p={oos_sharpe.p_value:.3f}, "
-                        f"α={alpha:.4f}), IS Sharpe={is_result.sharpe_ratio:.2f}. "
+                summary=f"Walk-forward OOS Sharpe={wf.aggregate_oos_sharpe:.2f} ({wf.n_folds} folds, "
+                        f"p={oos_sharpe.p_value:.3f}, α={alpha:.4f}). "
                         f"Bootstrap CI=[{oos_boot.ci_lower:.2f}, {oos_boot.ci_upper:.2f}]",
                 statistics=oos,
             )
             self._save_obj("evidence", ev.id, ev.model_dump())
 
-            log.info("Experiment %s: OOS Sharpe=%.2f p=%.3f (α=%.4f) → %s %s",
-                     exp.id, oos_result.sharpe_ratio, oos_sharpe.p_value, alpha,
+            log.info("Experiment %s: WF OOS Sharpe=%.2f (%d folds) p=%.3f (α=%.4f) → %s %s",
+                     exp.id, wf.aggregate_oos_sharpe, wf.n_folds, oos_sharpe.p_value, alpha,
                      quality.value, direction.value)
 
             return exp, ev
@@ -490,25 +720,67 @@ class AutonomousRunner:
 
             h_report = {"id": h.id, "claim": h.claim, "experiments": []}
 
-            # Get data for this hypothesis
-            if h.claim in claim_to_data:
-                symbol, timeframe, df = claim_to_data[h.claim]
-            else:
-                # Graph-gap hypothesis — use BTC/USDT 4h as default
-                symbol, timeframe = "BTC/USDT", "4h"
-                df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=500)
+            # Determine which datasets to test on. Primary from signal source,
+            # plus additional datasets for cross-validation (distinct experiments).
+            existing_evidence = [Evidence.model_validate(d) for d in self._list_objs("evidence")
+                                 if d.get("hypothesis_id") == h.id]
+            tested_datasets = set()
+            for e in existing_evidence:
+                exp_data = self._load_obj("experiments", e.experiment_id)
+                if exp_data:
+                    p = exp_data.get("parameters", {})
+                    tested_datasets.add((p.get("symbol", ""), p.get("timeframe", "")))
 
-            # Run experiment
-            exp, ev = self.run_experiment(h, df, symbol, timeframe)
-            if ev:
-                cycle.experiment_ids.append(exp.id)
-                cycle.evidence_ids.append(ev.id)
-                self._save_obj("cycles", cycle.id, cycle.model_dump())
-                h_report["experiments"].append({
-                    "id": exp.id,
-                    "evidence_quality": ev.quality.value,
-                    "evidence_direction": ev.direction.value,
-                })
+            # Build candidate datasets: primary first, then cross-validation pairs
+            datasets = []
+            if h.claim in claim_to_data:
+                sym, tf, df = claim_to_data[h.claim]
+                datasets.append((sym, tf, df))
+
+            # Extract the base asset from tags for cross-validation
+            base_asset = None
+            for tag in h.tags:
+                if "usdt" in tag:
+                    base_asset = tag.replace("_", "/").upper()
+                    break
+
+            # Add cross-validation datasets (same strategy, different data)
+            for sym, tf in DEFAULT_UNIVERSE:
+                if (sym, tf) not in tested_datasets and (not datasets or (sym, tf) != (datasets[0][0], datasets[0][1])):
+                    try:
+                        xdf = self.market.fetch_ohlcv(symbol=sym, timeframe=tf, limit=10000)
+                        if len(xdf) >= 200:
+                            datasets.append((sym, tf, xdf))
+                    except Exception:
+                        continue
+                if len(datasets) >= 3:
+                    break
+
+            if not datasets:
+                symbol, timeframe = "BTC/USDT", "4h"
+                df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=10000)
+                datasets.append((symbol, timeframe, df))
+
+            # Test on each dataset (distinct experiments for promotion gate)
+            n_folds = 5
+            min_bars = n_folds * 50 / 0.3  # each OOS fold needs ≥50 bars
+            for symbol, timeframe, df in datasets:
+                if (symbol, timeframe) in tested_datasets:
+                    continue
+                if len(df) < min_bars:
+                    log.info("Skipping %s %s: %d bars too short for %d-fold walk-forward (need %d)",
+                             symbol, timeframe, len(df), n_folds, int(min_bars))
+                    continue
+                exp, ev = self.run_experiment(h, df, symbol, timeframe)
+                if ev:
+                    cycle.experiment_ids.append(exp.id)
+                    cycle.evidence_ids.append(ev.id)
+                    self._save_obj("cycles", cycle.id, cycle.model_dump())
+                    h_report["experiments"].append({
+                        "id": exp.id,
+                        "evidence_quality": ev.quality.value,
+                        "evidence_direction": ev.direction.value,
+                    })
 
             # Decide
             decision = self.evaluate_and_decide(h, cycle)
