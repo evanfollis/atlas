@@ -20,7 +20,7 @@ Ordered by codex review #7 recommended sequence (2026-04-12). Do infrastructure 
 
 **C1. Dune exchange net-flow.** CEX addresses already cached (4957 labels). Needs a query for daily inflows/outflows by CEX tier, free-tier rate limits respected.
 
-**C2. Dispersion narrow retest (codex #6 design).** Fix venue membership to BitMEX+KrakenFutures only, 8h settlement cadence, residualize dispersion against mean funding, test as interaction `mean_fund × z(disp)` not median gate.
+~~**C2. Dispersion narrow retest.**~~ Done 2026-04-12. Interaction null (OOS 24h t=+1.50, threshold 1.96). Baseline `z_mf` reversal replicates OOS at 24h (t=−2.41). See `2026-04-12_dispersion_narrow.md`. Spec closed.
 
 ## Phase D — Portfolio & text (last)
 
@@ -45,6 +45,7 @@ Ordered by codex review #7 recommended sequence (2026-04-12). Do infrastructure 
 - Phase B1: curated events dataset + event-study framework (`2026-04-12_events_first_pass.md`)
 - Phase B2 (funding resets): crowded-long funding extreme → 3d CAR null, n=640, p=0.88 (`2026-04-12_funding_reset_events.md`). Spec closed.
 - Phase B2 (FNG extremes): FNG≤20/≥80 → 10d CAR null, underpowered, fear wrong-signed (`2026-04-12_fng_events.md`). Spec closed.
+- Phase C2 (dispersion narrow): interaction null; mean-funding reversal replicates OOS at 24h (`2026-04-12_dispersion_narrow.md`). Spec closed.
 
 - DVOL rebuttal test: killed the bucket (`2026-04-12_dvol_killed.md`)
 - Regime-gated funding reversal: effect lives in wrong direction, non-stationary (`2026-04-12_funding_gated.md`)
