@@ -50,7 +50,9 @@ class DuneClient:
         # Poll
         deadline = time.time() + max_wait_sec
         while time.time() < deadline:
-            s = self.session.get(f"{BASE}/execution/{exec_id}/status").json()
+            sr = self.session.get(f"{BASE}/execution/{exec_id}/status")
+            sr.raise_for_status()
+            s = sr.json()
             state = s.get("state", "")
             if state == "QUERY_STATE_COMPLETED":
                 break
@@ -60,7 +62,9 @@ class DuneClient:
         else:
             raise TimeoutError(f"Dune query {query_id} did not complete in {max_wait_sec}s")
 
-        r = self.session.get(f"{BASE}/execution/{exec_id}/results").json()
+        rr = self.session.get(f"{BASE}/execution/{exec_id}/results")
+        rr.raise_for_status()
+        r = rr.json()
         rows = r.get("result", {}).get("rows", [])
         df = pd.DataFrame(rows)
         if use_cache:
@@ -72,7 +76,9 @@ class DuneClient:
         cpath = self._cache_path(query_id, None)
         if use_cache and cpath.exists():
             return pd.read_csv(cpath)
-        r = self.session.get(f"{BASE}/query/{query_id}/results").json()
+        resp = self.session.get(f"{BASE}/query/{query_id}/results")
+        resp.raise_for_status()
+        r = resp.json()
         rows = r.get("result", {}).get("rows", [])
         df = pd.DataFrame(rows)
         if use_cache:

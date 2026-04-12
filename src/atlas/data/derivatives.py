@@ -15,12 +15,21 @@ Geo-blocked on this host (do not add):
 """
 
 import hashlib
+import logging
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 import ccxt
 import pandas as pd
+
+log = logging.getLogger(__name__)
+
+# Tripwires: if the fetch loop hits these limits we raise instead of silently
+# truncating. Silent truncation during stress periods would mechanically bias
+# regime / stationarity analyses downstream (codex review #5, finding #5).
+_MAX_CONSECUTIVE_ERRORS = 3
+_MAX_TOTAL_ERRORS = 10
 
 
 # Canonical perp symbols per venue
@@ -67,11 +76,23 @@ class DerivativesData:
 
         all_rows = []
         empty = 0
+        err_consec = 0
+        err_total = 0
         stride_ms = 500 * 8 * 3600 * 1000  # ~166 days fallback stride
         while since_ts < now_ms:
             try:
                 batch = ex.fetch_funding_rate_history(symbol, since=since_ts, limit=500)
-            except Exception:
+                err_consec = 0
+            except Exception as e:
+                err_consec += 1
+                err_total += 1
+                log.warning("funding fetch error %s/%s venue=%s since=%s: %s",
+                            err_total, _MAX_TOTAL_ERRORS, venue, since_ts, e)
+                if err_consec >= _MAX_CONSECUTIVE_ERRORS or err_total >= _MAX_TOTAL_ERRORS:
+                    raise RuntimeError(
+                        f"funding fetch aborted for {venue}/{symbol}: "
+                        f"{err_consec} consecutive / {err_total} total errors. "
+                        f"Refusing to cache a truncated series.") from e
                 since_ts += stride_ms
                 time.sleep(0.5)
                 continue
@@ -126,10 +147,17 @@ class DerivativesData:
                     "end_timestamp": cursor,
                     "resolution": str(resolution_sec),
                 })
-            except Exception:
-                break
+            except Exception as e:
+                raise RuntimeError(
+                    f"DVOL fetch aborted at cursor={cursor}: {e}. "
+                    f"Refusing to cache a truncated series.") from e
             data = r.get("result", {}).get("data", [])
             if not data:
+                # Empty batch inside expected window = possible upstream gap.
+                # Accept only if we've already reached the requested start.
+                if batch_start <= start_ms:
+                    break
+                log.warning("DVOL empty batch at cursor=%s batch_start=%s", cursor, batch_start)
                 break
             all_rows.extend(data)
             # advance cursor back

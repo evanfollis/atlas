@@ -1,5 +1,8 @@
 # DVOL (Deribit Implied Vol Index) — First Look — 2026-04-12
 
+> **STATUS: DOWNGRADED 2026-04-12 (same day).** The 60-80% bucket pattern below does **not** survive a rigorous followup (`/tmp/dvol_rigorous.py`) and a codex adversarial review. See "Rigorous followup" section at bottom. Treat the table below as an exploratory summary, not a finding. The bucket claim is an episode cluster, not a stable primitive. Do not build on it without the rebuttal test (freeze rule pre-2024, episode-level bootstrap, report 2024-2026 only).
+
+
 First hypothesis test against fresh options-implied vol data. 1,789 daily observations (2021-04 to 2026-03).
 
 ## Stationarity: linear DVOL effects fail the check
@@ -55,3 +58,21 @@ This rhymes with equity-VIX research: extreme VIX spikes coincide with drawdowns
 - `src/atlas/data/derivatives.py` — DerivativesData class fetching cross-venue funding (BitMEX/OKX/KrakenFutures) and Deribit DVOL. Free, no key, cached CSV.
 - `src/atlas/data/dune.py` — DuneClient class; executes saved queries with cache. Auth via DUNE_API_KEY env var (stored in atlas/.env, gitignored, chmod 600). Free tier verified working.
 - Smoke tests pass: 5yr of DVOL, 1yr KF funding, 3mo OKX funding, 4957 CEX-labeled addresses via Dune.
+
+## Rigorous followup (same-day) — DOWNGRADES the bucket claim
+
+Script: `/tmp/dvol_rigorous.py`. Codex adversarial review: see session notes.
+
+1. **Episode concentration invalidates the n=248 "independent observations" framing.** The 257 hot-bucket daily rows collapse to **26 episodes** (gap>7d). With a 30d forward-return target, adjacent signal days share almost identical payoff paths. Effective sample size is ~26, not 248.
+
+2. **Stationarity fails.** First half: 42 hot obs, modest mean. Second half: 215 hot obs, drives the entire pooled +7.98% figure. That is a clustered regime-localized effect, not a stable pattern.
+
+3. **Block bootstrap (block_size=30) CI** for pooled hot bucket 30d return: [+3.38%, +14.34%] — looks good, but block bootstrap on daily rows is still not an episode-level test when obs cluster into 26 episodes.
+
+4. **Walk-forward strategy test (26 bps Kraken fees):** Sharpe 0.39, p=0.37 across 5 folds. Not significant. Fold Sharpes: highly uneven, episode-driven.
+
+5. **Post-selection bias:** the intervals tested `[0.6,0.8)`, `[0.5,0.85)`, `[0.4,0.9)` were picked *after* seeing the bucket table. The walk-forward p-values do not price that search.
+
+## Rebuttal test that would revive the claim
+
+Per codex: freeze the rule on pre-2024 data only, use **one non-overlapping entry per episode** or a true episode bootstrap, then report strategy performance on 2024-2026 with no re-tuning. If that survives, the pattern is interesting. If not, it is a well-labeled episode cluster.
