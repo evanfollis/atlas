@@ -3,7 +3,7 @@ __pycache__/
 dist/
 build/
 .venv/
-data/
+/data/
 sessions/
 reports/
 methodology.jsonl
