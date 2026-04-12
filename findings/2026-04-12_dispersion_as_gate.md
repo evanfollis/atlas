@@ -14,7 +14,11 @@ Sample: 362 multi-venue days (2025-04-09 → 2026-04-05).
 
 Pooled split barely moves the effect. Tertile split is similarly flat (t1: -0.10, t2: -0.20, t3: -0.18). On the full window the gate is not doing useful work.
 
-## Half-sample: gate works in H1, collapses in H2
+## Half-sample: gate works in H1, collapses in H2 — BUT venue membership changes across halves
+
+**Caveat (codex review #6):** H1 (2025-04 → 2025-10) has mostly 2-venue days (BitMEX + KrakenFutures); OKX only starts 2026-01-08, so H2 is the period where all three venues report. The dispersion variable therefore has different statistical meaning in the two halves. The H1 → H2 shift is *partly* a measurement-change confound, not purely regime instability. Not a clean stationarity test.
+
+## Half-sample results (interpret with caveat above)
 
 | Half | Dispersion ≥ median | Dispersion < median |
 |---|---|---|

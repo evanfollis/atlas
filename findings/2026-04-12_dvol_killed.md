@@ -35,8 +35,8 @@ The strategy loses money both absolutely and dramatically vs. buy-and-hold.
 
 Hypothesis **killed**. Episode-level analysis on IS already collapses the effect to a fraction of the pooled number; OOS flips sign with a large negative magnitude. No residual claim to preserve.
 
-## Methodological lesson (promoted)
+## Methodological lesson (promoted, with caveat)
 
-When forward returns have horizon H and signal fires on consecutive days, pooled mean return can overstate the per-episode effect by roughly `(days per episode) / 1`. For the DVOL bucket: 257 days / 26 episodes ≈ 10× inflation — almost exactly the ratio observed (+7.98% / +0.78%).
+On this dataset, pooled mean (+7.98%) / episode-adjusted mean (+0.78%) ≈ 10×, which matches the days/episodes ratio (257/26 ≈ 10×). That coincidence is **not a universal law** — the ratio only approximates inflation when within-episode forward returns are essentially identical (i.e., a cluster of daily firings is really one trade). More generally, overlap is a dependence problem, not a fixed multiplicative factor (codex review #6).
 
-**Add to methodology:** any hypothesis using overlapping forward returns must report episode-adjusted effect size as primary, pooled as diagnostic only.
+**Add to methodology:** any hypothesis using overlapping forward returns must use cluster-aware inference — episode bootstrap, one-entry-per-episode sampling, or cluster-robust SEs. Report the episode-adjusted effect as primary, pooled as diagnostic only. The days/episodes ratio is a useful red flag for how severe the overlap is, not a correction factor.

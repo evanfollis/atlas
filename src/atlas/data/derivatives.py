@@ -74,35 +74,34 @@ class DerivativesData:
                     if since else int(datetime(2016, 1, 1, tzinfo=timezone.utc).timestamp() * 1000))
         now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
 
+        # Codex review #6: on error, retry the SAME window before advancing
+        # the cursor. Advancing the cursor on exception silently drops any
+        # data in that window — the exact hidden-censoring failure mode the
+        # research pipeline is most vulnerable to.
         all_rows = []
-        empty = 0
-        err_consec = 0
-        err_total = 0
-        stride_ms = 500 * 8 * 3600 * 1000  # ~166 days fallback stride
+        stride_ms = 500 * 8 * 3600 * 1000  # ~166 days fallback stride for empty batches
+        max_retries = 5
         while since_ts < now_ms:
-            try:
-                batch = ex.fetch_funding_rate_history(symbol, since=since_ts, limit=500)
-                err_consec = 0
-            except Exception as e:
-                err_consec += 1
-                err_total += 1
-                log.warning("funding fetch error %s/%s venue=%s since=%s: %s",
-                            err_total, _MAX_TOTAL_ERRORS, venue, since_ts, e)
-                if err_consec >= _MAX_CONSECUTIVE_ERRORS or err_total >= _MAX_TOTAL_ERRORS:
-                    raise RuntimeError(
-                        f"funding fetch aborted for {venue}/{symbol}: "
-                        f"{err_consec} consecutive / {err_total} total errors. "
-                        f"Refusing to cache a truncated series.") from e
-                since_ts += stride_ms
-                time.sleep(0.5)
-                continue
-            if not batch:
-                empty += 1
-                if empty > 5:
+            batch = None
+            for attempt in range(max_retries):
+                try:
+                    batch = ex.fetch_funding_rate_history(symbol, since=since_ts, limit=500)
                     break
+                except Exception as e:
+                    log.warning("funding fetch error (attempt %s/%s) venue=%s since=%s: %s",
+                                attempt + 1, max_retries, venue, since_ts, e)
+                    time.sleep(1.0 * (attempt + 1))
+            else:
+                raise RuntimeError(
+                    f"funding fetch aborted for {venue}/{symbol} at since_ts={since_ts}: "
+                    f"{max_retries} retries exhausted. Refusing to cache a truncated series.")
+            if not batch:
+                # Genuinely empty window (pre-venue-history or venue gap).
+                # Probe forward by one stride; if we hit 5 consecutive empties at the end of
+                # history we accept it, but if an empty occurs inside recorded data it will
+                # show up as a gap in the post-fetch audit below.
                 since_ts += stride_ms
                 continue
-            empty = 0
             all_rows.extend(batch)
             last_ts = batch[-1]["timestamp"]
             new_since = last_ts + 1
@@ -116,6 +115,16 @@ class DerivativesData:
         df = pd.DataFrame(all_rows)[["timestamp", "fundingRate"]]
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
         df = df.drop_duplicates(subset=["timestamp"]).set_index("timestamp").sort_index()
+
+        # Post-fetch gap audit: warn on stretches > 3x median cadence.
+        if len(df) > 10:
+            gaps = df.index.to_series().diff().dropna()
+            cadence = gaps.median()
+            big = gaps[gaps > cadence * 3]
+            if len(big) > 0:
+                log.warning("funding series %s/%s has %d gaps > 3x cadence (%s); "
+                            "largest = %s at %s", venue, symbol, len(big), cadence,
+                            big.max(), big.idxmax())
         df.to_csv(cpath)
         return df
 
@@ -153,12 +162,15 @@ class DerivativesData:
                     f"Refusing to cache a truncated series.") from e
             data = r.get("result", {}).get("data", [])
             if not data:
-                # Empty batch inside expected window = possible upstream gap.
-                # Accept only if we've already reached the requested start.
+                # Accept empty only when we've reached the requested start window
+                # (i.e. before DVOL history began). Empty inside the window is a
+                # real gap and must not be silently cached.
                 if batch_start <= start_ms:
                     break
-                log.warning("DVOL empty batch at cursor=%s batch_start=%s", cursor, batch_start)
-                break
+                raise RuntimeError(
+                    f"DVOL empty batch inside requested window "
+                    f"(cursor={cursor}, batch_start={batch_start}). "
+                    f"Refusing to cache a truncated series.")
             all_rows.extend(data)
             # advance cursor back
             earliest = min(int(row[0]) for row in data)

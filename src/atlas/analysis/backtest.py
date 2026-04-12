@@ -95,18 +95,28 @@ def walk_forward_backtest(
     periods_per_year: float = 365 * 6,
     fee_bps: float = 0,
 ) -> WalkForwardResult:
-    """Anchored walk-forward validation: expanding train window, sliding test window.
+    """Anchored walk-forward evaluation: expanding pre-test window, sliding test window.
 
-    Splits data into n_folds sequential test blocks. For each fold, the training
-    set is all data up to that fold's test block (expanding window). This prevents
-    look-ahead bias while using all available history for training.
+    Splits data into n_folds sequential test blocks. For each fold, the pre-test
+    window is all data up to that fold's test block (expanding). Only test-block
+    signals are evaluated.
+
+    IMPORTANT (codex review #4/#6): this harness does NOT fit a model on the
+    pre-test window. It only calls `signal_builder(test_df)`, which is safe for
+    stateless rolling-indicator rules (the only kind Atlas currently generates)
+    but does NOT evaluate trainable or state-adaptive strategies. Claims about
+    strategy survivability are therefore conditional on this implementation
+    class — not a general refutation of trainable variants. If a future signal
+    builder needs fitted state, this function must be extended to pass
+    `train_df` through (e.g., signal_builder(train_df, test_df)).
 
     Args:
         df: OHLCV DataFrame with at least a 'close' column.
-        signal_builder: Callable(df) → pd.Series of signals. Called once on train
-            data (for parameter fitting) and once on test data (for OOS evaluation).
+        signal_builder: Callable(df) → pd.Series of signals. Evaluated only on
+            test data. Assumed stateless and ex-ante (no look-ahead inside the
+            rolling window).
         n_folds: Number of walk-forward folds.
-        train_ratio: Fraction of total data reserved for the initial training window.
+        train_ratio: Fraction of total data reserved as the initial pre-test window.
             The remaining (1 - train_ratio) is divided into n_folds test blocks.
         periods_per_year: For annualization.
         fee_bps: Trading fee in basis points.

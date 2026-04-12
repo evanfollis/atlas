@@ -504,8 +504,11 @@ class AutonomousRunner:
     def run_experiment(self, h: Hypothesis, df: pd.DataFrame, symbol: str, timeframe: str) -> tuple[Experiment, Evidence | None]:
         """Phase 3: Design, execute, and evaluate an experiment.
 
-        Signal is built on in-sample (first 70%), then applied to OOS (last 30%).
-        The signal construction uses ONLY in-sample data — no information leakage.
+        Walk-forward evaluation only: the harness does NOT fit state on the
+        training window (see walk_forward_backtest docstring). All current
+        signal builders are stateless rolling indicators whose no-lookahead
+        guarantee comes from past-anchored windows, not from train/test
+        separation. Trainable signals would require extending the harness.
         """
         tf_periods = {"1h": 365 * 24, "4h": 365 * 6, "1d": 365, "1w": 52}
         periods_per_year = tf_periods.get(timeframe, 365 * 6)
