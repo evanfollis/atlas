@@ -4,7 +4,39 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from atlas.analysis.backtest import run_backtest, walk_forward_backtest
+from atlas.analysis.backtest import (
+    run_backtest, walk_forward_backtest, effective_cost_bps, VENUE_FEES,
+)
+
+
+def test_effective_cost_blend() -> None:
+    assert effective_cost_bps(10, 30, 0.0) == 30
+    assert effective_cost_bps(10, 30, 1.0) == 10
+    assert effective_cost_bps(10, 30, 0.5) == 20
+
+
+def test_effective_cost_rejects_bad_rate() -> None:
+    with pytest.raises(ValueError):
+        effective_cost_bps(10, 30, 1.5)
+
+
+def test_venue_fees_table_consistent() -> None:
+    # Every venue entry must be (maker, taker) with taker >= maker
+    for venue, (m, t) in VENUE_FEES.items():
+        assert t >= m, f"{venue}: taker {t} < maker {m}"
+
+
+def test_maker_taker_overrides_fee_bps() -> None:
+    prices = _make_prices([0.01] * 100)
+    signals = pd.Series([1 if i % 2 == 0 else -1 for i in range(len(prices))],
+                        index=prices.index)
+    # maker_fill_rate=1 → pure maker cost (5 bps) << fee_bps (50)
+    r_maker = run_backtest(prices, signals, fee_bps=50,
+                           maker_bps=5, taker_bps=50, maker_fill_rate=1.0)
+    r_taker = run_backtest(prices, signals, fee_bps=50,
+                           maker_bps=5, taker_bps=50, maker_fill_rate=0.0)
+    # maker path should retain more return (less fee drag)
+    assert r_maker.total_return > r_taker.total_return
 
 
 def _make_prices(returns: list[float]) -> pd.Series:

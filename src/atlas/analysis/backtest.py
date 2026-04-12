@@ -7,6 +7,38 @@ import numpy as np
 import pandas as pd
 
 
+# Venue fee reference (maker_bps, taker_bps) at default retail tier. Kept
+# small on purpose — these are not promoted primitives, just a convenience
+# table so callers can cite a source. Update as venues publish changes.
+VENUE_FEES: dict[str, tuple[float, float]] = {
+    "kraken":         (16, 26),   # Kraken Pro spot, default tier
+    "kraken_futures": (2,  5),    # Kraken Futures retail
+    "bitmex":         (1,  5),    # BitMEX perp retail
+    "binance":        (10, 10),   # Binance spot default (geo-blocked on US)
+    "bybit":          (10, 10),   # Bybit default (geo-blocked on US)
+    "okx":            (8,  10),   # OKX default
+    "deribit":        (0, 10),    # Deribit options maker rebate varies
+}
+
+
+def effective_cost_bps(
+    maker_bps: float,
+    taker_bps: float,
+    maker_fill_rate: float,
+) -> float:
+    """Blend maker/taker costs by assumed maker fill rate.
+
+    maker_fill_rate in [0,1]: fraction of position changes that rest as
+    maker (rebate/low-fee) rather than cross the book as taker. A
+    maker-only strategy that may miss fills is NOT modeled here — this
+    function assumes every intended trade fills, and only apportions
+    cost. Missed-fill modeling is left to the strategy layer.
+    """
+    if not 0.0 <= maker_fill_rate <= 1.0:
+        raise ValueError(f"maker_fill_rate must be in [0,1], got {maker_fill_rate}")
+    return maker_fill_rate * maker_bps + (1.0 - maker_fill_rate) * taker_bps
+
+
 @dataclass
 class BacktestResult:
     total_return: float
@@ -23,6 +55,9 @@ def run_backtest(
     signals: pd.Series,
     periods_per_year: float = 365 * 6,  # Default: 4h candles
     fee_bps: float = 0,
+    maker_bps: float | None = None,
+    taker_bps: float | None = None,
+    maker_fill_rate: float = 0.0,
 ) -> BacktestResult:
     """Run a vectorized backtest.
 
@@ -33,7 +68,15 @@ def run_backtest(
         fee_bps: One-way fee in basis points, charged on each position change.
             A round trip (enter + exit) costs 2 * fee_bps total.
             Kraken taker fee is ~26 bps → pass 26.
+        maker_bps, taker_bps, maker_fill_rate: If both maker_bps and taker_bps
+            are provided, the effective per-change cost is a blend
+            (see `effective_cost_bps`) and `fee_bps` is ignored. This models
+            best-case execution for strategies that can rest at least part of
+            their flow as maker. Missed-fill risk is not modeled — caller is
+            responsible for justifying the chosen maker_fill_rate.
     """
+    if maker_bps is not None and taker_bps is not None:
+        fee_bps = effective_cost_bps(maker_bps, taker_bps, maker_fill_rate)
     returns = prices.pct_change().dropna()
     signals_aligned = signals.reindex(returns.index).fillna(0).shift(1).dropna()
     returns = returns.reindex(signals_aligned.index)
@@ -95,6 +138,9 @@ def walk_forward_backtest(
     train_ratio: float = 0.7,
     periods_per_year: float = 365 * 6,
     fee_bps: float = 0,
+    maker_bps: float | None = None,
+    taker_bps: float | None = None,
+    maker_fill_rate: float = 0.0,
 ) -> WalkForwardResult:
     """Anchored walk-forward evaluation: expanding pre-test window, sliding test window.
 
@@ -158,7 +204,12 @@ def walk_forward_backtest(
 
         test_signals = (signal_builder(train_df, test_df) if trainable
                         else signal_builder(test_df))
-        oos_result = run_backtest(test_df["close"], test_signals, periods_per_year=periods_per_year, fee_bps=fee_bps)
+        oos_result = run_backtest(
+            test_df["close"], test_signals,
+            periods_per_year=periods_per_year, fee_bps=fee_bps,
+            maker_bps=maker_bps, taker_bps=taker_bps,
+            maker_fill_rate=maker_fill_rate,
+        )
 
         folds.append({
             "fold": i,
