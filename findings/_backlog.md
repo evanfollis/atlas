@@ -37,6 +37,12 @@ Ordered by codex review #7 recommended sequence (2026-04-12). Do infrastructure 
 - Funding dispersion as standalone predictor: null. Reopen only after A1 + dispersion narrow retest.
 
 ## Completed this session
+- Phase A2: rolling stationarity + structural-break diagnostics (`stationarity.py` + 10 tests)
+- Lag-6 re-examined via Phase A2 tooling (`2026-04-12_lag6_decay.md` stationarity section)
+- Phase A3: maker/taker fee model + VENUE_FEES table
+- Codex review #8: CUSUM rule unified; fee accounting fixed for reversals; maker/taker partial-config fail-closed; lag-6 Chow post-selection caveat
+- Phase B1: curated events dataset + event-study framework (`2026-04-12_events_first_pass.md`)
+
 - DVOL rebuttal test: killed the bucket (`2026-04-12_dvol_killed.md`)
 - Regime-gated funding reversal: effect lives in wrong direction, non-stationary (`2026-04-12_funding_gated.md`)
 - Dispersion-as-gate: partial positive with venue-membership caveat (`2026-04-12_dispersion_as_gate.md`)
