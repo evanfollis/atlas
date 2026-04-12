@@ -35,6 +35,7 @@ Ordered by codex review #7 recommended sequence (2026-04-12). Do infrastructure 
 - Lag-6 cross-asset reversal, BTC→ETH 4h retail: closed after 3 cycles (stateless → trainable → low-turnover). Reopen only with maker-only sub-4h execution OR alternate asset pair (newer majors: SOL/TAO/TIA) OR ex-ante regime gate mechanism.
 - DVOL 60-80% bucket: killed on OOS episode-adjusted test. Do not reopen.
 - Funding dispersion as standalone predictor: null. Reopen only after A1 + dispersion narrow retest.
+- Crowded-long BitMEX funding → 3d mean reversion: null at n=640, p=0.88. Reopen only with narrower intraday CAR window OR multi-venue conditioning OR different horizon class.
 
 ## Completed this session
 - Phase A2: rolling stationarity + structural-break diagnostics (`stationarity.py` + 10 tests)
@@ -42,6 +43,7 @@ Ordered by codex review #7 recommended sequence (2026-04-12). Do infrastructure 
 - Phase A3: maker/taker fee model + VENUE_FEES table
 - Codex review #8: CUSUM rule unified; fee accounting fixed for reversals; maker/taker partial-config fail-closed; lag-6 Chow post-selection caveat
 - Phase B1: curated events dataset + event-study framework (`2026-04-12_events_first_pass.md`)
+- Phase B2 (funding resets): crowded-long funding extreme → 3d CAR null, n=640, p=0.88 (`2026-04-12_funding_reset_events.md`). Spec closed.
 
 - DVOL rebuttal test: killed the bucket (`2026-04-12_dvol_killed.md`)
 - Regime-gated funding reversal: effect lives in wrong direction, non-stationary (`2026-04-12_funding_gated.md`)
