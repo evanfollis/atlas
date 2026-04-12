@@ -115,6 +115,26 @@ def test_walk_forward_basic() -> None:
     assert len(result.oos_returns) > 0
 
 
+def test_walk_forward_trainable_signal_builder() -> None:
+    """2-arg signal_builder receives (train_df, test_df) and can carry fitted state."""
+    np.random.seed(42)
+    prices = _make_prices(list(np.random.normal(0.001, 0.02, 1000)))
+    df = pd.DataFrame({"close": prices})
+    train_sizes_seen: list[int] = []
+
+    def trainable_builder(train_df: pd.DataFrame, test_df: pd.DataFrame) -> pd.Series:
+        # Carry fitted state: mean of train returns → signal sign on test.
+        train_mean = train_df["close"].pct_change().mean()
+        train_sizes_seen.append(len(train_df))
+        return pd.Series(1 if train_mean > 0 else -1, index=test_df.index)
+
+    result = walk_forward_backtest(df, trainable_builder, n_folds=3)
+    assert result.n_folds == 3
+    # Train sizes grow across folds (expanding window)
+    assert train_sizes_seen == sorted(train_sizes_seen)
+    assert train_sizes_seen[0] < train_sizes_seen[-1]
+
+
 def test_walk_forward_expanding_train() -> None:
     """Each fold's training set should be larger than the previous."""
     np.random.seed(42)

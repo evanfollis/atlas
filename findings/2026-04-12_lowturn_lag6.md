@@ -19,13 +19,15 @@ Follow-up to `2026-04-12_trainable_control.md`. Tested whether magnitude-gated e
 - Strategy **gross** (zero fees): total -63.3%, Sharpe **-0.63**
 - ETH buy-and-hold over same window: -2.9%, Sharpe +0.32
 
-The gross Sharpe is already negative OOS. **This is the decisive fact**: lowering turnover does not help because even zero-fee execution of this expression loses money in 2024+. The β is too small and too noisy to generate tradeable sign predictions at any cadence.
+The gross Sharpe is already negative OOS for the IS-selected cell. This rules out fee-amortization as the sole failure mode *for that specific expression*.
+
+**Narrower-than-originally-stated conclusion (codex review #7):** a separate cell (τ=20bp, H=120) has OOS gross Sharpe +0.65 / net +0.56 on about 25 trades, but is IS-negative and p ≈ 0.43 — so it is not cherry-pickable as a rescue. What is proved: **no robust IS-selectable low-turnover expression was found**. What is *not* proved: that no low-turnover expression of this signal can ever work — the H=120 pocket shows cadence still matters even if this particular grid does not produce a defensible strategy.
 
 ## Why this closes the branch
 
 β shrunk from -0.154 (2018) to -0.026 (2025). At τ=20bp, the predicted magnitude `α + β × btc_lag` rarely exceeds 20 bps in the OOS window (only 50 triggers in 14 months). The few triggers have close to 50/50 directional accuracy — insufficient for a positive gross expectation, let alone one that survives fees.
 
-**The signal is not in a cost basin we can escape by trading less often** — it is below the noise floor for directional prediction in the decay era, period.
+**Scope of the closure:** under current retail-style execution (26 bps taker, 4h bars, BTC→ETH only, stateless + trainable + low-turnover grid tested), no robust deployable lag-6 strategy was found. The mechanism itself is not proven dead — alternate pairs, maker-only venues, sub-4h cadence, or a different regime-gating mechanism are each untested.
 
 ## What this jointly says
 
@@ -37,6 +39,13 @@ Combined with the trainable control and the original decay finding, the full con
 
 **Lag-6 cross-asset reversal is closed as a strategy direction at current retail execution parameters.** Retained as a measurement result (β is real, measurable, and decayed) and as a training example for future methodology. Do not reopen without: (a) sub-4h bars with maker-only execution, or (b) new asset classes (newer majors, SOL or below) where β may still be non-decayed.
 
-## Methodological gain — stop testing harder versions of dead signals
+## Methodological gain — explicit stopping rule
 
-Three successive tests on the lag-6 β (stateless, trainable, low-turnover) all negative. Promote to methodology: **when the simplest honest test of a hypothesis fails cleanly, do not spend more cycles on dressed-up variants unless a specific new mechanism is in scope.** Atlas nearly spent a fourth round on this; the discipline check is to ask "what mechanism would make this work that we haven't already tested?" before committing another cycle. For lag-6 the answer is "maker-only micro-bar execution OR a different asset pair" — both are infrastructure-heavy and not in scope.
+Three successive tests on the lag-6 β (stateless, trainable, low-turnover) all negative. Promote to methodology (refined after codex review #7):
+
+**Stop cycling on a hypothesis when all three hold:**
+1. Tested materially different *expression classes* (not just parameter variants of one class).
+2. Directly attacked the *dominant failure mode* identified by the prior cycle (here: turnover cost, which the low-turn cycle directly addressed).
+3. Remaining variants mostly add degrees of freedom without introducing a new *mechanism*, *market*, or *execution regime*.
+
+For lag-6 under current scope: stateless vs trainable covers the state-handling class; flip-every-bar vs magnitude-gated-hold covers the expression class; β-tracking vs no-tracking covers the dominant failure mode. Remaining untested variants (asymmetric thresholds, regime conditioning, alternate asset pairs) either add degrees of freedom (asymmetric thresholds — codex tried; no rescue) or belong to a separate branch (alternate pairs, regime conditioning with ex-ante mechanism). This justifies closure of the BTC→ETH 4h retail branch, not universal closure.

@@ -1,20 +1,46 @@
 # Research Backlog — Atlas
 
-Open tracks (from user mandate 2026-04-12 + codex review #5):
+Ordered by codex review #7 recommended sequence (2026-04-12). Do infrastructure that unblocks multi-class work before opening the heaviest new data channels.
 
-1. **Cross-venue funding dispersion** — BitMEX vs OKX vs KrakenFutures BTC perp. Do divergences predict forward return or vol? Zero new data needed. [IN PROGRESS]
-2. **Regime-gated funding reversal** — use realized-vol or DVOL as gate on the funding→return hypothesis.
-3. **Dune exchange net-flow** — flow → forward return via labelled CEX addresses (already cached 4957 labels).
-4. **News data source** — free crypto news APIs / RSS aggregators; event-study framework.
-5. **Events data source** — halvings, forks, protocol upgrades, regulatory announcements.
-6. **Substack as signal source (NEW)** — user wants to follow Substack authors for (a) *ideas* for signals to test and (b) potentially treating author-published signals themselves as the signal (track-record, timestamped posts). Needs: ingestion path (RSS per author), idea-extraction vs. signal-extraction distinction, forward-return evaluation framework for claimed calls.
-7. **DVOL rebuttal test** — freeze rule pre-2024, episode-level bootstrap, report OOS 2024-26.
-8. **Rolling stationarity infra** — replace calendar-year bins with rolling-window + structural-break tests + regime labels (codex #3).
-9. **Walk-forward fit-vs-test claim** — backtest.py docstring says training fits, code only tests. Either wire training state through or correct docstring + runner comment (codex #4).
-10. **Causal graph integration across multi-source data** — combine news/events/on-chain/market signals into testable causal hypotheses, not just one-variable correlations.
-11. **Dispersion narrow retest (codex #6 design)** — fix venue membership to BitMEX+KrakenFutures only (stable 1yr window), measure at 8h funding-settlement cadence not daily mean, residualize dispersion against mean funding, test as interaction term `mean_fund × z(disp)` not median gate.
-12. **Fetch-layer gap audit report** — beyond post-fetch gap warnings, produce a persisted coverage report per venue/asset and refuse downstream analyses when gap density > threshold.
-13. ~~**Trainable signal class exploration**~~ — **Done** (`2026-04-12_trainable_control.md`). Trainable beats stateless in every year tested, but both lose to fees. Turnover cost (not signal decay) is the dominant killer at 4h cadence.
-14. **Low-turnover signal expression** — sparse-entry rule + multi-day hold; magnitude-gated entry (`|pred| > τ` chosen so per-trade expected return exceeds 52 bps round-trip).
-15. **Maker-fee / venue-cost models in backtest** — currently a single `fee_bps` parameter. Add maker vs taker and venue-specific tiers so strategies can be evaluated on their best-case execution.
-16. **Independent-edges portfolio** — combine N small signals; if independent their combined sharpe scales √N while per-signal turnover stays constant.
+## Phase A — Infrastructure (do first)
+
+**A1. Extend walk-forward harness to support fit-on-train / apply-on-test.** Add `signal_builder(train_df, test_df)` dual-arg form (opt-in by arity inspection); keep stateless form working. Unblocks trainable-class experiments, which matter much more for event/news signals than for lag-6. Codex flagged this as the single most-valuable next code change.
+
+**A2. Rolling stationarity + structural-break diagnostics.** Replace calendar-year bins (codex #5 critique) with rolling-window β estimate + CI, CUSUM / Chow test helpers, regime-labelled subsample reporter. Lives in `atlas/analysis/`.
+
+**A3. Maker-fee / venue-cost models in backtest.** Currently a single `fee_bps` parameter. Add maker vs taker + venue tier table so strategies can be evaluated under best-case execution.
+
+## Phase B — Structured events (do after A1, A2)
+
+**B1. Events data source — structured first.** Halvings, forks, protocol upgrades, SEC/regulatory dates, listings/delistings, major exchange outages, liquidation cascade timestamps. Curated small dataset, not raw news. Event-study framework: pre/post return windows around each event, matched-control returns, cumulative abnormal returns.
+
+**B2. Liquidation / funding-reset events.** From Deribit + CoinGlass free tier + BitMEX liquidation stream. Different from funding-level signal — focus on timestamped reset *events* as event study, not continuous series.
+
+## Phase C — On-chain (after B shows signal class is worth heavier data plumbing)
+
+**C1. Dune exchange net-flow.** CEX addresses already cached (4957 labels). Needs a query for daily inflows/outflows by CEX tier, free-tier rate limits respected.
+
+**C2. Dispersion narrow retest (codex #6 design).** Fix venue membership to BitMEX+KrakenFutures only, 8h settlement cadence, residualize dispersion against mean funding, test as interaction `mean_fund × z(disp)` not median gate.
+
+## Phase D — Portfolio & text (last)
+
+**D1. Independent-edges portfolio framework.** Only useful once 2-3 weak but plausible edges exist. Combined sharpe scales √N with per-signal turnover flat.
+
+**D2. Raw news text ingestion.** CryptoPanic / RSS aggregators. LLM-based claim extraction with strict schema. Heaviest mechanism class, least forgiving of out-of-band evaluation — do last.
+
+**D3. Substack as signal source.** Two distinct pipelines per user's mandate: (a) idea sourcing → hypothesis generation, (b) timestamped author calls as signals themselves with forward-return track record per author.
+
+## Parked (do not open without new mechanism)
+
+- Lag-6 cross-asset reversal, BTC→ETH 4h retail: closed after 3 cycles (stateless → trainable → low-turnover). Reopen only with maker-only sub-4h execution OR alternate asset pair (newer majors: SOL/TAO/TIA) OR ex-ante regime gate mechanism.
+- DVOL 60-80% bucket: killed on OOS episode-adjusted test. Do not reopen.
+- Funding dispersion as standalone predictor: null. Reopen only after A1 + dispersion narrow retest.
+
+## Completed this session
+- DVOL rebuttal test: killed the bucket (`2026-04-12_dvol_killed.md`)
+- Regime-gated funding reversal: effect lives in wrong direction, non-stationary (`2026-04-12_funding_gated.md`)
+- Dispersion-as-gate: partial positive with venue-membership caveat (`2026-04-12_dispersion_as_gate.md`)
+- Trainable-signal control: turnover cost dominates (`2026-04-12_trainable_control.md`)
+- Low-turnover lag-6 expression: no robust IS-selectable rescue found (`2026-04-12_lowturn_lag6.md`)
+- Silent-failure hardening of DerivativesData + DuneClient
+- Persistent methodology memory with 5 portable rules

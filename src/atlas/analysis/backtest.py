@@ -1,5 +1,6 @@
 """Vectorized backtesting — signal series to return metrics."""
 
+import inspect
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -101,20 +102,18 @@ def walk_forward_backtest(
     window is all data up to that fold's test block (expanding). Only test-block
     signals are evaluated.
 
-    IMPORTANT (codex review #4/#6): this harness does NOT fit a model on the
-    pre-test window. It only calls `signal_builder(test_df)`, which is safe for
-    stateless rolling-indicator rules (the only kind Atlas currently generates)
-    but does NOT evaluate trainable or state-adaptive strategies. Claims about
-    strategy survivability are therefore conditional on this implementation
-    class — not a general refutation of trainable variants. If a future signal
-    builder needs fitted state, this function must be extended to pass
-    `train_df` through (e.g., signal_builder(train_df, test_df)).
+    The signal_builder may be either stateless or trainable:
+      - Stateless (1-arg): called as `signal_builder(test_df)`. Caller is
+        responsible for using only past-anchored rolling windows inside.
+      - Trainable (2-arg): called as `signal_builder(train_df, test_df)`.
+        Caller may fit any state on train_df and apply it to test_df. Arity
+        is detected automatically; the 2-arg form is opt-in.
 
     Args:
         df: OHLCV DataFrame with at least a 'close' column.
-        signal_builder: Callable(df) → pd.Series of signals. Evaluated only on
-            test data. Assumed stateless and ex-ante (no look-ahead inside the
-            rolling window).
+        signal_builder: Callable(test_df) -> pd.Series OR
+            Callable(train_df, test_df) -> pd.Series. Trainable form receives
+            the expanding train window for each fold and may fit state.
         n_folds: Number of walk-forward folds.
         train_ratio: Fraction of total data reserved as the initial pre-test window.
             The remaining (1 - train_ratio) is divided into n_folds test blocks.
@@ -132,6 +131,21 @@ def walk_forward_backtest(
     if fold_size < 50:
         raise ValueError(f"Insufficient data for {n_folds} folds: only {fold_size} bars per fold (need ≥50 for signal warm-up)")
 
+    # Detect signal_builder arity: 1-arg = stateless (test only),
+    # 2-arg = trainable (train_df, test_df). Opt-in extension so existing
+    # stateless callers continue to work unchanged.
+    try:
+        sig = inspect.signature(signal_builder)
+        n_params = sum(
+            1 for p in sig.parameters.values()
+            if p.kind in (inspect.Parameter.POSITIONAL_ONLY,
+                          inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            and p.default is inspect.Parameter.empty
+        )
+        trainable = n_params >= 2
+    except (TypeError, ValueError):
+        trainable = False
+
     folds = []
     all_oos_returns = []
 
@@ -142,7 +156,8 @@ def walk_forward_backtest(
         train_df = df.iloc[:test_start]
         test_df = df.iloc[test_start:test_end]
 
-        test_signals = signal_builder(test_df)
+        test_signals = (signal_builder(train_df, test_df) if trainable
+                        else signal_builder(test_df))
         oos_result = run_backtest(test_df["close"], test_signals, periods_per_year=periods_per_year, fee_bps=fee_bps)
 
         folds.append({
