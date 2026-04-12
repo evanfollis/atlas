@@ -100,7 +100,7 @@ class AutonomousRunner:
         results = []
         for symbol, timeframe in DEFAULT_UNIVERSE:
             try:
-                df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=10000)
+                df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=100000)
                 split_idx = int(len(df) * oos_cutoff)
                 is_df = df.iloc[:split_idx]
 
@@ -132,7 +132,7 @@ class AutonomousRunner:
         for symbol, timeframe in DEFAULT_UNIVERSE:
             if (symbol, timeframe) not in is_data:
                 try:
-                    df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=10000)
+                    df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=100000)
                     is_data[(symbol, timeframe)] = df.iloc[:int(len(df) * oos_cutoff)]
                 except Exception:
                     pass
@@ -789,7 +789,7 @@ class AutonomousRunner:
             for sym, tf in DEFAULT_UNIVERSE:
                 if (sym, tf) not in tested_datasets and (not datasets or (sym, tf) != (datasets[0][0], datasets[0][1])):
                     try:
-                        xdf = self.market.fetch_ohlcv(symbol=sym, timeframe=tf, limit=10000)
+                        xdf = self.market.fetch_ohlcv(symbol=sym, timeframe=tf, limit=100000)
                         if len(xdf) >= 200:
                             datasets.append((sym, tf, xdf))
                     except Exception:
@@ -799,7 +799,7 @@ class AutonomousRunner:
 
             if not datasets:
                 symbol, timeframe = "BTC/USDT", "4h"
-                df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=10000)
+                df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=100000)
                 datasets.append((symbol, timeframe, df))
 
             # Test on each dataset (distinct experiments for promotion gate)
