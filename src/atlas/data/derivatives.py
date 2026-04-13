@@ -34,7 +34,7 @@ _MAX_TOTAL_ERRORS = 10
 
 # Canonical perp symbols per venue
 _VENUE_PERP_SYMBOLS = {
-    "bitmex": {"BTC": "BTC/USD:BTC", "ETH": "ETH/USD:ETH"},  # inverse perps = longest history
+    "bitmex": {"BTC": "BTC/USD:BTC", "ETH": "ETH/USDT:USDT"},  # BTC inverse (longest), ETH linear (inverse ETH perp delisted)
     "okx": {"BTC": "BTC/USD:BTC", "ETH": "ETH/USD:ETH"},
     "krakenfutures": {"BTC": "BTC/USD:USD", "ETH": "ETH/USD:USD"},
 }

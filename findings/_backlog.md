@@ -46,6 +46,7 @@ Ordered by codex review #7 recommended sequence (2026-04-12). Do infrastructure 
 - Phase B2 (funding resets): crowded-long funding extreme → 3d CAR null, n=640, p=0.88 (`2026-04-12_funding_reset_events.md`). Spec closed.
 - Phase B2 (FNG extremes): FNG≤20/≥80 → 10d CAR null, underpowered, fear wrong-signed (`2026-04-12_fng_events.md`). Spec closed.
 - Phase C2 (dispersion narrow): interaction null; mean-funding reversal replicates OOS at 24h (`2026-04-12_dispersion_narrow.md`). Spec closed.
+- z_mf cross-asset on ETH: does not generalize, OOS |t|≤1.26 (`2026-04-13_zmf_eth_robustness.md`). Edge is BTC-specific.
 
 - DVOL rebuttal test: killed the bucket (`2026-04-12_dvol_killed.md`)
 - Regime-gated funding reversal: effect lives in wrong direction, non-stationary (`2026-04-12_funding_gated.md`)
