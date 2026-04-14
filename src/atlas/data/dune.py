@@ -16,6 +16,8 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from atlas import config  # noqa: F401  — side effect: loads .env
+
 
 BASE = "https://api.dune.com/api/v1"
 

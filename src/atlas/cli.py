@@ -510,3 +510,28 @@ def scan_signals(symbol: str, timeframe: str) -> None:
 
     for s in signals:
         click.echo(f"[{s.strength:.2f}] {s.method}: {s.description}")
+
+
+METHODOLOGY_LOG = BASE_DIR / "methodology.jsonl"
+REVAL_QUEUE = BASE_DIR / "pending_revalidation.jsonl"
+
+
+@cli.command("ingest-finding")
+@click.argument("finding_path", type=click.Path(exists=True, path_type=Path))
+def ingest_finding_cmd(finding_path: Path) -> None:
+    """Parse a finding markdown and emit Hypothesis/Experiment/Evidence records."""
+    from atlas.research.ingest import ingest_finding
+    ids = ingest_finding(finding_path, STATE_DIR, METHODOLOGY_LOG, REVAL_QUEUE)
+    click.echo(f"hypothesis={ids['hypothesis_id']} experiment={ids['experiment_id']} evidence={ids['evidence_id']}")
+
+
+@cli.command("revalidations-due")
+def revalidations_due_cmd() -> None:
+    """List findings whose revalidation window has elapsed."""
+    from atlas.research.ingest import due_revalidations
+    rows = due_revalidations(REVAL_QUEUE)
+    if not rows:
+        click.echo("No revalidations due.")
+        return
+    for r in rows:
+        click.echo(f"{r['experiment_id']}  due={r['due_at']}  script={r['script']}")

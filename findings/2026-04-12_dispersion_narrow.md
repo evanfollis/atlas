@@ -1,3 +1,22 @@
+<!-- atlas-finding
+claim: "BitMEX+KrakenFutures mean-funding z-score predicts BTC 24h forward log-return with mean-reversion sign"
+experiment_id: dispersion_narrow_2026_04_12
+spec_hash: C2-disp-narrow-v1
+data_range: "2025-04-09 to 2026-04-12"
+evidence_class: out_of_sample_test
+quality: moderate
+direction: supports
+summary: "OOS β(z_mf)=-0.00389 t=-2.41 at fwd_24h, n=331. Interaction z_mf*z_disp null (OOS t=+1.50)."
+stats:
+  n_oos: 331
+  t_stat_zmf_oos: -2.41
+  beta_zmf_oos: -0.00389
+  t_stat_interaction_oos: 1.50
+generation_method: residualized_interaction_narrow_retest
+revalidate_after_days: 90
+script: scripts/dispersion_narrow.py
+-->
+
 # Dispersion Narrow Retest (Phase C2) — 2026-04-12 (null on interaction; baseline replicates)
 
 Narrow retest of cross-venue funding dispersion as an interaction predictor, per codex review #6 design and the Phase B2 memory rule requiring multi-variable conditioning.

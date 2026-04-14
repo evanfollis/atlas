@@ -1,3 +1,21 @@
+<!-- atlas-finding
+claim: "Extreme BitMEX BTC funding prints (rolling 1y q01/q99) predict mean-reverting BTC 3-day forward CAR"
+experiment_id: funding_reset_events_2026_04_12
+spec_hash: B2-funding-reset-q01q99-3d-v1
+data_range: "2016-05 to 2026-04"
+evidence_class: out_of_sample_test
+quality: strong
+direction: contradicts
+summary: "Crowded-long n=640 OOS p=0.92 mean CAR +0.38%; crowded-short n=122 p=0.79. Null at 3d horizon."
+stats:
+  n_crowded_long: 640
+  p_crowded_long: 0.88
+  n_crowded_short: 122
+  p_crowded_short: 0.46
+generation_method: rolling_quantile_event_study
+script: scripts/funding_reset_events.py
+-->
+
 # Funding-Reset Event Study on BitMEX BTC — 2026-04-12 (Phase B2, null)
 
 **Null result.** Extreme BitMEX funding prints (rolling 1y q01 / q99) do not predict mean-reverting BTC returns at the 3-day horizon. Finding is recorded so the hypothesis class is marked closed at this specification and Phase B2 can move to liquidation-cascade events instead.

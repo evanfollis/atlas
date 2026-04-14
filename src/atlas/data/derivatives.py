@@ -56,10 +56,16 @@ class DerivativesData:
         return self.cache_dir / f"{h}.csv"
 
     def fetch_funding_rates(self, venue: str, asset: str = "BTC",
-                            since: str | None = None) -> pd.DataFrame:
+                            since: str | None = None,
+                            max_stale_hours: float | None = 24.0) -> pd.DataFrame:
         """Paginate funding rate history for a venue's asset perp.
 
         Returns DataFrame with single column `fundingRate` indexed by UTC timestamp.
+
+        If a cache exists and its last observation is older than `max_stale_hours`,
+        the tail is refetched from `last_ts` forward and appended (no full refetch).
+        Pass `max_stale_hours=None` to always use the cache verbatim (useful for
+        reproducibility when re-running an old experiment on frozen data).
         """
         if venue not in _VENUE_PERP_SYMBOLS:
             raise ValueError(f"Unsupported venue {venue}; add symbol mapping first")
@@ -67,17 +73,39 @@ class DerivativesData:
         cache_key = f"funding:{venue}:{symbol}:{since or 'all'}"
         cpath = self._cache_path(cache_key)
         if cpath.exists():
-            return pd.read_csv(cpath, index_col="timestamp", parse_dates=True)
+            cached = pd.read_csv(cpath, index_col="timestamp", parse_dates=True)
+            if max_stale_hours is None or len(cached) == 0:
+                return cached
+            last = pd.Timestamp(cached.index[-1])
+            if last.tzinfo is None:
+                last = last.tz_localize("UTC")
+            age_hours = (datetime.now(timezone.utc) - last.to_pydatetime()).total_seconds() / 3600
+            if age_hours <= max_stale_hours:
+                return cached
+            # Stale: refetch tail from last_ts and append.
+            log.info("funding cache stale (age %.1fh) for %s/%s — refetching tail",
+                     age_hours, venue, symbol)
+            tail_since = last.isoformat()
+            tail = self._fetch_funding_raw(venue, symbol,
+                                           int(last.timestamp() * 1000) + 1)
+            if len(tail) > 0:
+                merged = pd.concat([cached, tail])
+                merged = merged[~merged.index.duplicated(keep="last")].sort_index()
+                merged.to_csv(cpath)
+                return merged
+            return cached
 
-        ex = self._get(venue)
         since_ts = (int(datetime.fromisoformat(since).timestamp() * 1000)
                     if since else int(datetime(2016, 1, 1, tzinfo=timezone.utc).timestamp() * 1000))
-        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        df = self._fetch_funding_raw(venue, symbol, since_ts)
+        if not df.empty:
+            df.to_csv(cpath)
+        return df
 
-        # Codex review #6: on error, retry the SAME window before advancing
-        # the cursor. Advancing the cursor on exception silently drops any
-        # data in that window — the exact hidden-censoring failure mode the
-        # research pipeline is most vulnerable to.
+    def _fetch_funding_raw(self, venue: str, symbol: str, since_ts: int) -> pd.DataFrame:
+        """Pagination loop shared by full fetch and stale-tail refresh."""
+        ex = self._get(venue)
+        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
         all_rows = []
         stride_ms = 500 * 8 * 3600 * 1000  # ~166 days fallback stride for empty batches
         max_retries = 5
@@ -125,7 +153,6 @@ class DerivativesData:
                 log.warning("funding series %s/%s has %d gaps > 3x cadence (%s); "
                             "largest = %s at %s", venue, symbol, len(big), cadence,
                             big.max(), big.idxmax())
-        df.to_csv(cpath)
         return df
 
     def fetch_dvol(self, currency: str = "BTC", resolution_sec: int = 86400,
