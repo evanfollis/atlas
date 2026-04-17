@@ -1,6 +1,6 @@
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-17T09-10-35Z — tick session (claude-sonnet-4-6)
+**Last updated**: 2026-04-17T14-23-10Z — reflection pass (claude-sonnet-4-6)
 
 ---
 
@@ -12,7 +12,7 @@
 
 ## What just shipped
 
-### Codex adversarial review fixes (this tick)
+### Codex adversarial review fixes (commit c5b7a13, 2026-04-17 09:19 UTC)
 Three findings from the Codex review of `ingest.py` (review blocked for 5 cycles, landed via codex-exec path).
 
 **Finding 2 — Deterministic evidence ID** (`src/atlas/research/ingest.py`, `src/atlas/models/evidence.py`)
@@ -22,7 +22,7 @@ Three findings from the Codex review of `ingest.py` (review blocked for 5 cycles
 
 **Finding 2 — Atomic writes in StateStore** (`src/atlas/storage/state_store.py`)
 - `save()` now writes to a tmpfile then renames (`os.replace`) — atomic on Linux.
-- Readers never observe a partial write. Concurrent writers are safe: both succeed, last-write-wins for new objects (content is logically identical for hypotheses/experiments; evidence has deterministic ID so content is equivalent modulo `created_at`).
+- Readers never observe a partial write. Concurrent writers are safe: both succeed, last-write-wins for new objects.
 
 **Finding 3 — Content snapshot** (`src/atlas/research/ingest.py`, `src/atlas/models/evidence.py`)
 - `block_content_hash`: `sha256[:16]` of the raw YAML text inside the `<!-- atlas-finding ... -->` block, captured at ingest time.
@@ -44,9 +44,9 @@ Three findings from the Codex review of `ingest.py` (review blocked for 5 cycles
   - Raw claim text (strip()-only) is the key. Wording drift forks the same hypothesis; semantic duplicates silently merge.
   - Fix requires: canonicalize before hashing (lowercase + whitespace-normalize + strip punctuation) + one-shot migration that re-keys all `.atlas/hypotheses/*.json` files. This is ADR-class — do not do it inline.
   - Draft plan: (a) add `claim_canonical()` to `utils.py` that applies full normalization, (b) write a migration script similar to `scripts/migrate_claim_hash.py` that loads each hypothesis, re-hashes with the new function, renames the file, re-links experiments and evidence. (c) bump schema version.
-  - Blocked on: deciding whether the 40 existing hypotheses are worth migrating or can be reset (research is early-stage).
-- **Live end-to-end path unvalidated**: No `atlas run --once` has run since the claim-hash migration. Run this before shipping next feature.
-- **Telemetry field name**: runner emits `timestamp` (epoch ms), workspace CLAUDE.md spec says `ts`. One-line fix in `runner.py` if reconciled with workspace spec.
+  - Decision needed: whether to migrate 40 existing hypotheses or reset (research is early-stage). Migration script is ready either way.
+- **Live end-to-end path unvalidated**: No `atlas run --once` has run since the claim-hash migration (2+ ticks). Run this before shipping next feature.
+- **Multi-line docstring in ingest.py**: 15-line "Identity and concurrency properties" block added in c5b7a13 violates CLAUDE.md style policy. Content is correct; move to CLAUDE.md §Key Design Decisions instead.
 - **`created_at` non-determinism in concurrent evidence writes**: with atomic writes, two concurrent workers produce logically equivalent evidence records with different `created_at` values; last-write-wins. Cosmetic only — the ID and all substantive fields are identical.
 - **Backtest ≠ live performance**: known limitation, Phase 2.
 
@@ -58,6 +58,7 @@ Three findings from the Codex review of `ingest.py` (review blocked for 5 cycles
 - `list_all()` in StateStore now skips `.tmp` files (suffix check added) — safe to have tmp files in state dirs during concurrent writes.
 - The migration script (`scripts/migrate_claim_hash.py`) is idempotent — safe to re-run.
 - Evidence `source_hash` is empty string `""` on records created before this tick (runner-generated evidence). Only ingest-pipeline evidence has it set. That's correct — the field is optional.
+- `methodology.jsonl` has 3 pre-attribution records (no `generation_method`); methodology feedback loop will run on neutral weights until new records accumulate.
 
 ## Recent decisions
 - **Claim hash canonical: [:16] of SHA-256 with strip()**. `utils.py` is the single source of truth.
@@ -66,9 +67,10 @@ Three findings from the Codex review of `ingest.py` (review blocked for 5 cycles
 - **Revalidation queue is append-only**: dedup-on-read, not dedup-on-write.
 - **Pre-registered fields are immutable**: enforced in StateStore. Do not relax.
 - **Causality vs correlation distinction is load-bearing**: edges must represent tested causal claims.
+- **Telemetry field name reconciled (2026-04-17)**: atlas `runner.py::_emit_telemetry` emits `timestamp` (epoch ms integer). Workspace CLAUDE.md spec was reconciled to match on 2026-04-17 — no atlas code change needed.
 
 ## What the next agent must read first
 1. Run `.venv/bin/python -m pytest` to confirm 81/81 baseline.
-2. Run `atlas run --once` to validate the live exchange path (still unexercised since c1395bb migration).
+2. Run `atlas run --once` to validate the live exchange path (still unexercised since c1395bb migration — 2+ ticks overdue).
 3. Finding 1 (claim_hash canonical identity) is **documented but not fixed**. Read the Open Items section above for the concrete migration plan before touching claim hashing.
-4. Next highest-leverage items: on-chain/funding-rate signal detectors, Granger causality for causal edges, telemetry field name reconciliation.
+4. Next highest-leverage items: run live path, claim-hash migration decision, on-chain/funding-rate signal detectors.
