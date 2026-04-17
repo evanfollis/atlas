@@ -1,13 +1,15 @@
 """Tests for findings → evidence ingest pipeline."""
 from __future__ import annotations
 
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from atlas.research.ingest import (
-    claim_hash, due_revalidations, ingest_finding, mark_revalidated, parse_finding,
+    _block_content_hash, _evidence_id, claim_hash, due_revalidations,
+    ingest_finding, mark_revalidated, parse_finding,
 )
 
 
@@ -115,3 +117,122 @@ def test_reingest_with_different_spec_hash_raises(tmp_path):
     finding.write_text(finding.read_text().replace("test-spec-v1_x", "test-spec-v2_x"))
     with pytest.raises(ValueError, match="different spec_hash"):
         ingest_finding(finding, state, ml, q)
+
+
+# ── Finding 2: deterministic evidence ID ──────────────────────────────────────
+
+def test_evidence_id_is_deterministic(tmp_path):
+    """Same file ingested twice produces the same evidence ID."""
+    f = _write(tmp_path / "f.md", suffix="_det")
+    state = tmp_path / "s"
+    ml = tmp_path / "m.jsonl"
+    q = tmp_path / "q.jsonl"
+
+    ids1 = ingest_finding(f, state, ml, q)
+    # Second call hits the dedup path and returns the same ev_id.
+    ids2 = ingest_finding(f, state, ml, q)
+    assert ids1["evidence_id"] == ids2["evidence_id"]
+
+
+def test_evidence_id_changes_when_block_edited(tmp_path):
+    """Editing the finding block post-ingest produces a different evidence ID
+    on re-ingest, surfacing the mutation as a distinct record."""
+    f = _write(tmp_path / "f.md", suffix="_edit")
+    state = tmp_path / "s"
+    ml = tmp_path / "m.jsonl"
+    q = tmp_path / "q.jsonl"
+
+    ids1 = ingest_finding(f, state, ml, q)
+
+    # Edit a field that doesn't touch spec_hash — simulates post-hoc summary tweak.
+    original = f.read_text()
+    f.write_text(original.replace('summary: "OOS t=-2.10"', 'summary: "OOS t=-2.10 (revised)"'))
+    # New experiment_id required because block changed; use a different suffix.
+    f.write_text(f.read_text().replace("experiment_id: test_exp__edit", "experiment_id: test_exp__edit_v2"))
+
+    ids2 = ingest_finding(f, state, ml, q)
+    assert ids1["evidence_id"] != ids2["evidence_id"]
+
+
+def test_content_hash_stored_in_evidence(tmp_path):
+    """Evidence record contains a non-empty source_hash field."""
+    f = _write(tmp_path / "f.md", suffix="_ch")
+    state = tmp_path / "s"
+    ml = tmp_path / "m.jsonl"
+    q = tmp_path / "q.jsonl"
+
+    ids = ingest_finding(f, state, ml, q)
+
+    import json as _json
+    ev_path = state / "evidence" / f"{ids['evidence_id']}.json"
+    ev_data = _json.loads(ev_path.read_text())
+    assert ev_data.get("source_hash"), "source_hash must be set on evidence record"
+    assert len(ev_data["source_hash"]) == 16
+
+
+def test_block_content_hash_stored_in_experiment(tmp_path):
+    """Experiment parameters contain block_content_hash at ingest time."""
+    f = _write(tmp_path / "f.md", suffix="_bch")
+    state = tmp_path / "s"
+    ml = tmp_path / "m.jsonl"
+    q = tmp_path / "q.jsonl"
+
+    ids = ingest_finding(f, state, ml, q)
+
+    import json as _json
+    exp_path = state / "experiments" / f"{ids['experiment_id']}.json"
+    exp_data = _json.loads(exp_path.read_text())
+    assert exp_data["parameters"].get("block_content_hash"), \
+        "block_content_hash must be in experiment parameters"
+
+
+# ── Finding 2: concurrency — two workers ingesting the same file ───────────────
+
+def test_concurrent_ingest_no_duplicate_evidence(tmp_path):
+    """Two threads ingesting the same finding file produce exactly one evidence record."""
+    f = _write(tmp_path / "f.md", suffix="_conc")
+    state = tmp_path / "s"
+    ml = tmp_path / "m.jsonl"
+    q = tmp_path / "q.jsonl"
+
+    results: list[dict] = []
+    errors: list[Exception] = []
+
+    def worker():
+        try:
+            r = ingest_finding(f, state, ml, q)
+            results.append(r)
+        except Exception as e:
+            errors.append(e)
+
+    t1 = threading.Thread(target=worker)
+    t2 = threading.Thread(target=worker)
+    t1.start(); t2.start()
+    t1.join(); t2.join()
+
+    assert not errors, f"Workers raised: {errors}"
+    # Both workers must return the same evidence ID.
+    assert results[0]["evidence_id"] == results[1]["evidence_id"]
+    # Exactly one evidence file on disk.
+    ev_files = list((state / "evidence").glob("*.json"))
+    assert len(ev_files) == 1, f"Expected 1 evidence file, found {len(ev_files)}"
+
+
+# ── Finding 3: revalidation queue dedup-on-read ───────────────────────────────
+
+def test_revalidation_dedup_on_read(tmp_path):
+    """Duplicate queue entries for the same experiment_id are collapsed to one
+    by due_revalidations(), as if concurrent writers both appended."""
+    finding = _write(tmp_path / "f.md",
+                     extra="revalidate_after_days: 1\nscript: scripts/f.py")
+    state = tmp_path / "s"
+    ml = tmp_path / "m.jsonl"
+    q = tmp_path / "q.jsonl"
+
+    # Manually append two identical entries (simulating concurrent writers).
+    ingest_finding(finding, state, ml, q)
+    ingest_finding(finding, state, ml, q)  # hits evidence dedup; but re-appends queue
+
+    future = datetime.now(timezone.utc) + timedelta(days=2)
+    due = due_revalidations(q, now=future)
+    assert len(due) == 1, f"Expected 1 due entry after dedup, got {len(due)}"

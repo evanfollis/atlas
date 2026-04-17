@@ -1,6 +1,6 @@
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-17 — tick session (claude-sonnet-4-6)
+**Last updated**: 2026-04-17T09-10-35Z — tick session (claude-sonnet-4-6)
 
 ---
 
@@ -10,33 +10,65 @@
 - **Entry**: CLI for debugging; `atlas run --interval 3600` for production
 - **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`
 
-## What just shipped (commit c1395bb)
-- **Claim hash unified to [:16]**: `src/atlas/utils.py` is the canonical source; both `runner.py` and `ingest.py` import from it. State store migrated: 40 hypotheses, 120 evidence, 120 experiment records — zero collisions. All tests pass (75/75).
-- **Evidence deduplication**: `ingest_finding()` skips re-writing evidence when `(hypothesis_id, experiment_id)` already exists; same guard on revalidation queue append.
-- **Workspace telemetry live**: `_emit_telemetry()` in runner emits `cycle.started`, `hypothesis.decided`, and `cycle.failed` events to `/opt/workspace/runtime/.telemetry/events.jsonl`. Atlas is now visible to meta-scan.
-- **Methodology feedback loop closed**: `generate_hypotheses()` tracks `(hypothesis, source_method)` through the full pipeline, logs `hypothesis_sources` records to `methodology.jsonl`, and uses `compute_method_weights()` (Laplace-smoothed promotion rate) to break prioritization ties. Neutral until evidence accumulates.
+## What just shipped
+
+### Codex adversarial review fixes (this tick)
+Three findings from the Codex review of `ingest.py` (review blocked for 5 cycles, landed via codex-exec path).
+
+**Finding 2 — Deterministic evidence ID** (`src/atlas/research/ingest.py`, `src/atlas/models/evidence.py`)
+- Evidence ID is now `sha256(hyp_id:exp_id:block_content_hash)[:16]` — deterministic from file content.
+- Two concurrent workers ingesting the same file compute the same ev_id (last-write-wins is benign, same logical content).
+- Dedup check changed from O(n) `list_all()` scan to O(1) `store.load("evidence", ev_id)`.
+
+**Finding 2 — Atomic writes in StateStore** (`src/atlas/storage/state_store.py`)
+- `save()` now writes to a tmpfile then renames (`os.replace`) — atomic on Linux.
+- Readers never observe a partial write. Concurrent writers are safe: both succeed, last-write-wins for new objects (content is logically identical for hypotheses/experiments; evidence has deterministic ID so content is equivalent modulo `created_at`).
+
+**Finding 3 — Content snapshot** (`src/atlas/research/ingest.py`, `src/atlas/models/evidence.py`)
+- `block_content_hash`: `sha256[:16]` of the raw YAML text inside the `<!-- atlas-finding ... -->` block, captured at ingest time.
+- Stored as `source_hash` on the Evidence record and `block_content_hash` in Experiment.parameters.
+- A post-ingest edit to the finding block produces a different evidence ID on re-ingest — mutation surfaces as a new record rather than silently overwriting.
+
+**Finding 2 — Revalidation queue: append-only + dedup-on-read**
+- Removed pre-write dedup check (race-prone read-then-act). Queue is now always append-only.
+- `due_revalidations()` deduplicates by experiment_id at read time (`seen` set), so concurrent or repeated appends don't produce duplicate scheduled re-runs.
+
+**Test baseline**: 81/81 (was 75/75, 6 new tests cover deterministic ID, content hash, real concurrent threading, revalidation dedup).
+
+### Previously shipped (commit c1395bb)
+- Claim hash unified to [:16], evidence dedup, workspace telemetry, methodology feedback loop.
 
 ## Open items
-- **`/review` on ingest.py (commit 5076ba0) NOT done**: `/review` skill failed with `EROFS: read-only file system, open '/root/.claude.json'`. This is a system-level blocker, not a code issue. Escalated to executive. The specific review targets are: concurrent writers with no locking, evidence dedup correctness, revalidation queue unbounded append.
-- **File locking still deferred**: StateStore has no write locking. Single-process assumption holds for now; concurrent access remains a known gap (Review #3/#4 finding).
+- **`/review` EROFS** — `/review` skill still blocked. Check `/opt/workspace/runtime/.handoff/` for resolution status. Note: this tick's changes were reviewed via Codex-exec path (adversarial review landed). The EROFS blocks the interactive `/review` skill only.
+- **Finding 1 — claim_hash as canonical identity (documented, not fixed)**:
+  - Raw claim text (strip()-only) is the key. Wording drift forks the same hypothesis; semantic duplicates silently merge.
+  - Fix requires: canonicalize before hashing (lowercase + whitespace-normalize + strip punctuation) + one-shot migration that re-keys all `.atlas/hypotheses/*.json` files. This is ADR-class — do not do it inline.
+  - Draft plan: (a) add `claim_canonical()` to `utils.py` that applies full normalization, (b) write a migration script similar to `scripts/migrate_claim_hash.py` that loads each hypothesis, re-hashes with the new function, renames the file, re-links experiments and evidence. (c) bump schema version.
+  - Blocked on: deciding whether the 40 existing hypotheses are worth migrating or can be reset (research is early-stage).
+- **Live end-to-end path unvalidated**: No `atlas run --once` has run since the claim-hash migration. Run this before shipping next feature.
+- **Telemetry field name**: runner emits `timestamp` (epoch ms), workspace CLAUDE.md spec says `ts`. One-line fix in `runner.py` if reconciled with workspace spec.
+- **`created_at` non-determinism in concurrent evidence writes**: with atomic writes, two concurrent workers produce logically equivalent evidence records with different `created_at` values; last-write-wins. Cosmetic only — the ID and all substantive fields are identical.
 - **Backtest ≠ live performance**: known limitation, Phase 2.
 
 ## Blocked on
-- `/review` blocked by `EROFS` on `/root/.claude.json` — system issue, not code. Executive must resolve before adversarial review can run.
+- Nothing urgent. `/review` EROFS is a system issue for the general session to resolve.
 
 ## Known gotchas
-- The `.venv/bin/pytest` shebang points to `/opt/projects/atlas/.venv/bin/python3` (old path). Use `.venv/bin/python -m pytest` instead.
-- Existing `methodology.jsonl` records predate `hypothesis_sources` phase — weights start neutral (0.5) and learn forward. That's correct behavior.
-- The migration script (`scripts/migrate_claim_hash.py`) is idempotent — safe to re-run, skips already-[:16] files.
+- `.venv/bin/pytest` shebang points to old path. Use `.venv/bin/python -m pytest`.
+- `list_all()` in StateStore now skips `.tmp` files (suffix check added) — safe to have tmp files in state dirs during concurrent writes.
+- The migration script (`scripts/migrate_claim_hash.py`) is idempotent — safe to re-run.
+- Evidence `source_hash` is empty string `""` on records created before this tick (runner-generated evidence). Only ingest-pipeline evidence has it set. That's correct — the field is optional.
 
 ## Recent decisions
-- **Claim hash canonical: [:16] of SHA-256 with strip()**. `utils.py` is the single source of truth. Never inline another hash function.
-- **Pre-registered fields are immutable**: hypothesis claims, falsification criteria, thresholds — enforced in StateStore. Do not add flexibility here.
+- **Claim hash canonical: [:16] of SHA-256 with strip()**. `utils.py` is the single source of truth.
+- **Evidence ID is now deterministic**: `sha256(hyp_id:exp_id:block_content_hash)[:16]`. Two writers, same input → same ID → safe.
+- **StateStore writes are atomic**: tmpfile + os.replace. No explicit file locks.
+- **Revalidation queue is append-only**: dedup-on-read, not dedup-on-write.
+- **Pre-registered fields are immutable**: enforced in StateStore. Do not relax.
 - **Causality vs correlation distinction is load-bearing**: edges must represent tested causal claims.
-- **Backtest ≠ live performance**: known limitation, Phase 2.
 
 ## What the next agent must read first
-1. Check `/opt/workspace/runtime/.handoff/` for the `/review` escalation before anything else — it needs a human or system fix.
-2. Methodology feedback loop is live but has no data yet. First few autonomous cycles will produce `hypothesis_sources` records; subsequent cycles will have real weights.
-3. Run `.venv/bin/python -m pytest` not `.venv/bin/pytest` (shebang is stale).
-4. Next highest-leverage items (from executive handoff): on-chain/funding-rate signal detectors, Granger causality for causal edge justification.
+1. Run `.venv/bin/python -m pytest` to confirm 81/81 baseline.
+2. Run `atlas run --once` to validate the live exchange path (still unexercised since c1395bb migration).
+3. Finding 1 (claim_hash canonical identity) is **documented but not fixed**. Read the Open Items section above for the concrete migration plan before touching claim hashing.
+4. Next highest-leverage items: on-chain/funding-rate signal detectors, Granger causality for causal edges, telemetry field name reconciliation.

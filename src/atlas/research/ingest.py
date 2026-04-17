@@ -34,9 +34,28 @@ Finding-block schema (YAML-ish key: value, fenced by HTML comments):
 
 Everything after the closing `-->` is the human narrative; the system
 only cares about this block.
+
+Identity and concurrency properties
+------------------------------------
+Evidence ID is deterministic: sha256(hyp_id + ":" + exp_id + ":" + block_content_hash)[:16].
+Two concurrent workers ingesting the same file compute the same ev_id, so
+last-write-wins for the evidence file is benign (same logical content).
+
+The source_hash field (sha256[:16] of the raw YAML block) acts as a
+content snapshot: a post-ingest edit to the finding block produces a
+different ev_id on re-ingest, surfacing the mutation as a new record
+rather than silently overwriting.
+
+Revalidation queue is append-only; due_revalidations() deduplicates by
+experiment_id at read time, so concurrent appends don't produce
+duplicate scheduled re-runs.
+
+Known gap: file locking is not implemented. The single-process assumption
+holds for production use; concurrent multi-process ingest is not supported.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -59,7 +78,7 @@ FINDING_BLOCK = re.compile(r"<!--\s*atlas-finding\s*(.*?)-->", re.DOTALL)
 
 
 def parse_finding(md_path: Path) -> dict[str, Any]:
-    """Extract the atlas-finding block from a markdown file."""
+    """Extract and validate the atlas-finding block from a markdown file."""
     text = md_path.read_text()
     m = FINDING_BLOCK.search(text)
     if not m:
@@ -73,6 +92,20 @@ def parse_finding(md_path: Path) -> dict[str, Any]:
     return data
 
 
+def _block_content_hash(md_path: Path) -> str:
+    """sha256[:16] of the raw YAML text inside the finding block."""
+    text = md_path.read_text()
+    m = FINDING_BLOCK.search(text)
+    if not m:
+        raise ValueError(f"No <!-- atlas-finding ... --> block in {md_path}")
+    return hashlib.sha256(m.group(1).encode()).hexdigest()[:16]
+
+
+def _evidence_id(hyp_id: str, exp_id: str, content_hash: str) -> str:
+    """Deterministic evidence ID: sha256(hyp_id:exp_id:content_hash)[:16]."""
+    return hashlib.sha256(f"{hyp_id}:{exp_id}:{content_hash}".encode()).hexdigest()[:16]
+
+
 def ingest_finding(
     md_path: Path,
     state_dir: Path,
@@ -83,6 +116,9 @@ def ingest_finding(
     enqueue revalidation if requested. Idempotent on re-run."""
     block = parse_finding(md_path)
     store = StateStore(state_dir)
+
+    # Content snapshot of the raw block — detects post-ingest edits.
+    block_content_hash = _block_content_hash(md_path)
 
     hyp_id = claim_hash(block["claim"])
     existing_hyp = store.load("hypotheses", hyp_id)
@@ -110,9 +146,12 @@ def ingest_finding(
             method=block.get("generation_method", "script"),
             success_criteria=block.get("success_criteria", "pre-registered"),
             failure_criteria=block.get("failure_criteria", "pre-registered"),
-            parameters={"spec_hash": block["spec_hash"],
-                        "script": block.get("script", ""),
-                        "data_range": block.get("data_range", "")},
+            parameters={
+                "spec_hash": block["spec_hash"],
+                "script": block.get("script", ""),
+                "data_range": block.get("data_range", ""),
+                "block_content_hash": block_content_hash,
+            },
             status=ExperimentStatus.COMPLETED,
         )
         store.save("experiments", exp_id, json.loads(exp.model_dump_json()))
@@ -123,18 +162,19 @@ def ingest_finding(
                 f"If the pre-reg text changed, use a new experiment_id."
             )
 
-    existing_ev = [
-        e for e in store.list_all("evidence")
-        if e.get("hypothesis_id") == hyp_id and e.get("experiment_id") == exp_id
-    ]
-    if existing_ev:
+    # Deterministic evidence ID: two workers ingesting the same block compute
+    # the same ev_id, so concurrent writes are benign (last-write-wins, same content).
+    ev_id = _evidence_id(hyp_id, exp_id, block_content_hash)
+    existing_ev = store.load("evidence", ev_id)
+    if existing_ev is not None:
         log.warning(
             "Evidence already recorded for (hypothesis=%s, experiment=%s) — skipping",
             hyp_id, exp_id,
         )
-        return {"hypothesis_id": hyp_id, "experiment_id": exp_id, "evidence_id": existing_ev[0]["id"]}
+        return {"hypothesis_id": hyp_id, "experiment_id": exp_id, "evidence_id": ev_id}
 
     ev = Evidence(
+        id=ev_id,
         experiment_id=exp_id,
         hypothesis_id=hyp_id,
         evidence_class=EvidenceClass(block["evidence_class"]),
@@ -143,6 +183,7 @@ def ingest_finding(
         summary=block["summary"],
         statistics=block.get("stats", {}),
         data_range=block.get("data_range", ""),
+        source_hash=block_content_hash,
     )
     store.save("evidence", ev.id, json.loads(ev.model_dump_json()))
 
@@ -161,34 +202,32 @@ def ingest_finding(
             "finding_path": str(md_path),
         }) + "\n")
 
-    # Revalidation queue (optional).
+    # Revalidation queue — append-only journal; dedup happens at read time
+    # in due_revalidations(). This avoids the read-then-act race on write.
     if "revalidate_after_days" in block and block.get("script"):
-        already_queued = False
-        if revalidation_queue.exists():
-            for line in revalidation_queue.read_text().splitlines():
-                if line.strip() and json.loads(line).get("experiment_id") == exp_id:
-                    already_queued = True
-                    break
-        if not already_queued:
-            due = datetime.now(timezone.utc) + timedelta(days=int(block["revalidate_after_days"]))
-            revalidation_queue.parent.mkdir(parents=True, exist_ok=True)
-            with revalidation_queue.open("a") as f:
-                f.write(json.dumps({
-                    "finding_path": str(md_path),
-                    "script": block["script"],
-                    "experiment_id": exp_id,
-                    "hypothesis_id": hyp_id,
-                    "spec_hash": block["spec_hash"],
-                    "due_at": due.isoformat(),
-                    "enqueued_at": datetime.now(timezone.utc).isoformat(),
-                }) + "\n")
+        due = datetime.now(timezone.utc) + timedelta(days=int(block["revalidate_after_days"]))
+        revalidation_queue.parent.mkdir(parents=True, exist_ok=True)
+        with revalidation_queue.open("a") as f:
+            f.write(json.dumps({
+                "finding_path": str(md_path),
+                "script": block["script"],
+                "experiment_id": exp_id,
+                "hypothesis_id": hyp_id,
+                "spec_hash": block["spec_hash"],
+                "due_at": due.isoformat(),
+                "enqueued_at": datetime.now(timezone.utc).isoformat(),
+            }) + "\n")
 
     return {"hypothesis_id": hyp_id, "experiment_id": exp_id, "evidence_id": ev.id}
 
 
 def due_revalidations(queue_path: Path, now: datetime | None = None) -> list[dict]:
     """Return queue entries whose due_at has passed and which have not yet
-    been marked done in a sibling `<queue>.done` file."""
+    been marked done in a sibling `<queue>.done` file.
+
+    Deduplicates by experiment_id (first occurrence wins) so that concurrent
+    or repeated appends to the queue do not produce duplicate scheduled re-runs.
+    """
     if not queue_path.exists():
         return []
     now = now or datetime.now(timezone.utc)
@@ -198,13 +237,16 @@ def due_revalidations(queue_path: Path, now: datetime | None = None) -> list[dic
         for line in done_path.read_text().splitlines():
             if line.strip():
                 done_keys.add(json.loads(line)["experiment_id"])
+    seen: set[str] = set()
     out = []
     for line in queue_path.read_text().splitlines():
         if not line.strip():
             continue
         r = json.loads(line)
-        if r["experiment_id"] in done_keys:
+        exp_id = r["experiment_id"]
+        if exp_id in done_keys or exp_id in seen:
             continue
+        seen.add(exp_id)
         due = datetime.fromisoformat(r["due_at"])
         if due <= now:
             out.append(r)

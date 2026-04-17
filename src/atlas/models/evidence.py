@@ -39,3 +39,4 @@ class Evidence(BaseModel):
     summary: str  # Human-readable description of finding
     statistics: dict[str, Any] = Field(default_factory=dict)  # p-value, sharpe, CI, etc.
     data_range: str = ""  # e.g. "2023-01-01 to 2024-06-30"
+    source_hash: str = ""  # sha256[:16] of raw finding block at ingest time; detects post-ingest edits
