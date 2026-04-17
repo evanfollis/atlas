@@ -1,42 +1,42 @@
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-16 — seeded by executive (general session)
+**Last updated**: 2026-04-17 — tick session (claude-sonnet-4-6)
 
 ---
 
 ## Deployed / running state
 - **Mode**: autonomous research loop (signal intake → hypothesis → experiment → evidence → graph update)
-- **Domain**: crypto markets (Kraken exchange — Binance/Bybit blocked on Hetzner US server)
-- **Entry**: CLI exists for debugging; production is the continuous autonomous loop
-- **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `findings/`
+- **Domain**: crypto markets (Kraken/Bitstamp — Binance/Bybit blocked on Hetzner US server)
+- **Entry**: CLI for debugging; `atlas run --interval 3600` for production
+- **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`
 
-## What's in progress
-One handoff pending (`atlas-synthesis-proposals-2026-04-15T10-48-22Z.md`):
+## What just shipped (commit c1395bb)
+- **Claim hash unified to [:16]**: `src/atlas/utils.py` is the canonical source; both `runner.py` and `ingest.py` import from it. State store migrated: 40 hypotheses, 120 evidence, 120 experiment records — zero collisions. All tests pass (75/75).
+- **Evidence deduplication**: `ingest_finding()` skips re-writing evidence when `(hypothesis_id, experiment_id)` already exists; same guard on revalidation queue append.
+- **Workspace telemetry live**: `_emit_telemetry()` in runner emits `cycle.started`, `hypothesis.decided`, and `cycle.failed` events to `/opt/workspace/runtime/.telemetry/events.jsonl`. Atlas is now visible to meta-scan.
+- **Methodology feedback loop closed**: `generate_hypotheses()` tracks `(hypothesis, source_method)` through the full pipeline, logs `hypothesis_sources` records to `methodology.jsonl`, and uses `compute_method_weights()` (Laplace-smoothed promotion rate) to break prioritization ties. Neutral until evidence accumulates.
 
-**A. Claim hash unification** — Two write paths use different hash truncations (`:12` vs `:16`). This is S1-P3 (two write paths to same store without reconciliation contract). Find both sites, unify to one truncation length. Run `/review` since this touches data integrity.
-
-**B. Telemetry emission** — Atlas emits zero events to the shared workspace event stream. Minimum: emit `startup`, `task_completed`, `error` events with `{ project: "atlas", eventType, level, ts, sourceType }` to the workspace telemetry file.
-
-**C. `/review` on commit 5076ba0** — This commit touched claim handling and was flagged in reflection as needing adversarial review. The review has not happened. Do it before shipping any new claim-touching code.
-
-## Known broken or degraded
-- **Claim hash inconsistency (CONFIRMED)**: `:12` vs `:16` truncation across write paths — cross-path queries silently corrupt. This is a data integrity bug, not a cosmetic issue.
-- **Zero telemetry**: Atlas is invisible to the workspace meta-scan. Any failure is silent.
-- **Review debt on 5076ba0**: claim handling code has not been adversarially reviewed.
+## Open items
+- **`/review` on ingest.py (commit 5076ba0) NOT done**: `/review` skill failed with `EROFS: read-only file system, open '/root/.claude.json'`. This is a system-level blocker, not a code issue. Escalated to executive. The specific review targets are: concurrent writers with no locking, evidence dedup correctness, revalidation queue unbounded append.
+- **File locking still deferred**: StateStore has no write locking. Single-process assumption holds for now; concurrent access remains a known gap (Review #3/#4 finding).
+- **Backtest ≠ live performance**: known limitation, Phase 2.
 
 ## Blocked on
-- Nothing external. All three proposals are self-contained.
+- `/review` blocked by `EROFS` on `/root/.claude.json` — system issue, not code. Executive must resolve before adversarial review can run.
+
+## Known gotchas
+- The `.venv/bin/pytest` shebang points to `/opt/projects/atlas/.venv/bin/python3` (old path). Use `.venv/bin/python -m pytest` instead.
+- Existing `methodology.jsonl` records predate `hypothesis_sources` phase — weights start neutral (0.5) and learn forward. That's correct behavior.
+- The migration script (`scripts/migrate_claim_hash.py`) is idempotent — safe to re-run, skips already-[:16] files.
 
 ## Recent decisions
-- **Pre-registered fields are immutable**: hypothesis claims, falsification criteria, thresholds cannot change post-creation — enforced in code. Do not add flexibility here.
-- **Causality vs correlation distinction is load-bearing**: edges in the causal graph must represent tested causal claims. Don't degrade this without an ADR.
-- **Backtest ≠ live performance**: known limitation, address in Phase 2. Don't add disclaimers to code — the architecture already separates the concerns.
-
-## What bit the last session
-- Unknown (no prior tick session). The reflection pass identified the hash truncation issue from commit history but didn't have full context on when it was introduced.
+- **Claim hash canonical: [:16] of SHA-256 with strip()**. `utils.py` is the single source of truth. Never inline another hash function.
+- **Pre-registered fields are immutable**: hypothesis claims, falsification criteria, thresholds — enforced in StateStore. Do not add flexibility here.
+- **Causality vs correlation distinction is load-bearing**: edges must represent tested causal claims.
+- **Backtest ≠ live performance**: known limitation, Phase 2.
 
 ## What the next agent must read first
-1. Find both claim hash generation sites before touching either — understand the full scope first
-2. Check `methodology.jsonl` format before adding telemetry — the emit pattern should match existing workspace event shape
-3. Run existing tests before any changes to confirm baseline
-4. Proposal C (review on 5076ba0) can be done independently of A and B — consider doing it first since it unblocks clean commits for A and B
+1. Check `/opt/workspace/runtime/.handoff/` for the `/review` escalation before anything else — it needs a human or system fix.
+2. Methodology feedback loop is live but has no data yet. First few autonomous cycles will produce `hypothesis_sources` records; subsequent cycles will have real weights.
+3. Run `.venv/bin/python -m pytest` not `.venv/bin/pytest` (shebang is stale).
+4. Next highest-leverage items (from executive handoff): on-chain/funding-rate signal detectors, Granger causality for causal edge justification.
