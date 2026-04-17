@@ -37,8 +37,8 @@ only cares about this block.
 """
 from __future__ import annotations
 
-import hashlib
 import json
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -50,13 +50,12 @@ from atlas.models.evidence import Evidence, EvidenceClass, EvidenceDirection, Ev
 from atlas.models.experiment import Experiment, ExperimentStatus
 from atlas.models.hypothesis import Hypothesis, HypothesisStatus
 from atlas.storage.state_store import StateStore
+from atlas.utils import claim_hash
 
+
+log = logging.getLogger("atlas.ingest")
 
 FINDING_BLOCK = re.compile(r"<!--\s*atlas-finding\s*(.*?)-->", re.DOTALL)
-
-
-def claim_hash(claim: str) -> str:
-    return hashlib.sha256(claim.strip().encode()).hexdigest()[:16]
 
 
 def parse_finding(md_path: Path) -> dict[str, Any]:
@@ -124,6 +123,17 @@ def ingest_finding(
                 f"If the pre-reg text changed, use a new experiment_id."
             )
 
+    existing_ev = [
+        e for e in store.list_all("evidence")
+        if e.get("hypothesis_id") == hyp_id and e.get("experiment_id") == exp_id
+    ]
+    if existing_ev:
+        log.warning(
+            "Evidence already recorded for (hypothesis=%s, experiment=%s) — skipping",
+            hyp_id, exp_id,
+        )
+        return {"hypothesis_id": hyp_id, "experiment_id": exp_id, "evidence_id": existing_ev[0]["id"]}
+
     ev = Evidence(
         experiment_id=exp_id,
         hypothesis_id=hyp_id,
@@ -153,18 +163,25 @@ def ingest_finding(
 
     # Revalidation queue (optional).
     if "revalidate_after_days" in block and block.get("script"):
-        due = datetime.now(timezone.utc) + timedelta(days=int(block["revalidate_after_days"]))
-        revalidation_queue.parent.mkdir(parents=True, exist_ok=True)
-        with revalidation_queue.open("a") as f:
-            f.write(json.dumps({
-                "finding_path": str(md_path),
-                "script": block["script"],
-                "experiment_id": exp_id,
-                "hypothesis_id": hyp_id,
-                "spec_hash": block["spec_hash"],
-                "due_at": due.isoformat(),
-                "enqueued_at": datetime.now(timezone.utc).isoformat(),
-            }) + "\n")
+        already_queued = False
+        if revalidation_queue.exists():
+            for line in revalidation_queue.read_text().splitlines():
+                if line.strip() and json.loads(line).get("experiment_id") == exp_id:
+                    already_queued = True
+                    break
+        if not already_queued:
+            due = datetime.now(timezone.utc) + timedelta(days=int(block["revalidate_after_days"]))
+            revalidation_queue.parent.mkdir(parents=True, exist_ok=True)
+            with revalidation_queue.open("a") as f:
+                f.write(json.dumps({
+                    "finding_path": str(md_path),
+                    "script": block["script"],
+                    "experiment_id": exp_id,
+                    "hypothesis_id": hyp_id,
+                    "spec_hash": block["spec_hash"],
+                    "due_at": due.isoformat(),
+                    "enqueued_at": datetime.now(timezone.utc).isoformat(),
+                }) + "\n")
 
     return {"hypothesis_id": hyp_id, "experiment_id": exp_id, "evidence_id": ev.id}
 

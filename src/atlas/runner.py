@@ -3,7 +3,6 @@
 Runs continuously: scan → generate → test → evaluate → decide → update graph → repeat.
 """
 
-import hashlib
 import json
 import logging
 import time
@@ -30,6 +29,7 @@ from atlas.models.session import CycleOutcome, CycleStatus, ResearchCycle
 from atlas.storage.event_store import EventStore
 from atlas.storage.graph_store import GraphStore
 from atlas.storage.state_store import StateStore
+from atlas.utils import claim_hash as _claim_hash
 
 log = logging.getLogger("atlas.runner")
 
@@ -43,10 +43,6 @@ DEFAULT_UNIVERSE = [
     ("SOL/USDT", "1h"),
 ]
 
-
-def _claim_hash(claim: str) -> str:
-    """Stable ID from claim text so the same hypothesis persists across cycles."""
-    return hashlib.sha256(claim.encode()).hexdigest()[:12]
 
 
 class AutonomousRunner:
@@ -74,6 +70,28 @@ class AutonomousRunner:
         entry["timestamp"] = datetime.now(timezone.utc).isoformat()
         with open(self.methodology_log, "a") as f:
             f.write(json.dumps(entry, default=str) + "\n")
+
+    def _emit_telemetry(self, event_type: str, level: str = "info", details: dict | None = None) -> None:
+        """Append one event to the shared workspace telemetry stream."""
+        import uuid
+        event = {
+            "project": "atlas",
+            "source": "atlas.runner",
+            "eventType": event_type,
+            "level": level,
+            "sourceType": "system",
+            "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+            "id": str(uuid.uuid4()),
+        }
+        if details:
+            event["details"] = details
+        telemetry_path = Path("/opt/workspace/runtime/.telemetry/events.jsonl")
+        try:
+            telemetry_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(telemetry_path, "a") as f:
+                f.write(json.dumps(event, default=str) + "\n")
+        except Exception as exc:
+            log.warning("Failed to emit telemetry event %s: %s", event_type, exc)
 
     def _find_existing_hypothesis(self, claim: str) -> Hypothesis | None:
         """Find an existing hypothesis with the same claim."""
@@ -206,7 +224,7 @@ class AutonomousRunner:
 
     def generate_hypotheses(self, signal_results: list[tuple[str, str, list, pd.DataFrame]]) -> list[Hypothesis]:
         """Phase 2: Convert signals into hypotheses. Reuse existing hypothesis IDs."""
-        candidates = []
+        candidates: list[tuple[Hypothesis, str]] = []  # (hypothesis, source_method)
 
         for symbol, timeframe, signals, _ in signal_results:
             for signal in signals:
@@ -215,21 +233,21 @@ class AutonomousRunner:
                 if gen:
                     sym = signal.symbol or symbol
                     tf = signal.timeframe or timeframe
-                    candidates.append(gen(signal, sym, tf))
+                    candidates.append((gen(signal, sym, tf), signal.method))
                 else:
                     h = from_signal(signal, symbol, timeframe)
                     if h:
-                        candidates.append(h)
+                        candidates.append((h, signal.method))
 
         # Graph-driven generation
         graph = self.graph_store.load()
         gap_hypotheses = from_graph_gaps(graph)
-        candidates.extend(gap_hypotheses)
+        candidates.extend([(h, "graph_gaps") for h in gap_hypotheses])
 
         # Deduplicate and resolve to durable IDs
-        seen_claims = set()
-        unique = []
-        for h in candidates:
+        seen_claims: set[str] = set()
+        unique: list[tuple[Hypothesis, str]] = []
+        for h, method in candidates:
             if h.claim in seen_claims:
                 continue
             seen_claims.add(h.claim)
@@ -240,21 +258,27 @@ class AutonomousRunner:
                 if existing.status in (HypothesisStatus.PROMOTED, HypothesisStatus.FALSIFIED):
                     log.debug("Skipping already-resolved hypothesis: %s", existing.id)
                     continue
-                unique.append(existing)
+                unique.append((existing, method))
             else:
                 # Assign stable ID from claim hash
                 h.id = _claim_hash(h.claim)
-                unique.append(h)
+                unique.append((h, method))
 
-        # Prioritize: calendar > composite > single-source
-        # Calendar signals are most novel and have causal grounding in market microstructure
-        calendar = [h for h in unique if "calendar" in h.tags]
-        composite = [h for h in unique if "composite" in h.tags and "calendar" not in h.tags]
-        single_source = [h for h in unique if "composite" not in h.tags]
-        prioritized = calendar + composite + single_source
+        # Prioritize: calendar > composite > single-source, break ties by method promotion weight
+        method_weights = self.compute_method_weights()
 
-        # Limit per cycle (balance thoroughness vs Bonferroni penalty)
-        selected = prioritized[:5]
+        def _score(item: tuple[Hypothesis, str]) -> float:
+            h, method = item
+            base = 0.0
+            if "calendar" in h.tags:
+                base = 2.0
+            elif "composite" in h.tags:
+                base = 1.0
+            return base + method_weights.get(method, 0.5)
+
+        prioritized = sorted(unique, key=_score, reverse=True)
+        selected_pairs = prioritized[:5]
+        selected = [h for h, _ in selected_pairs]
 
         # Apply Bonferroni correction: compute adjusted alpha per cycle
         # but do NOT mutate h.significance_threshold (pre-registered, immutable)
@@ -262,6 +286,11 @@ class AutonomousRunner:
         n_tests = max(1, len(selected))
         for h in selected:
             h._bonferroni_n = n_tests  # type: ignore[attr-defined]
+
+        # Log method → hypothesis_id attribution for future weight computation
+        method_hypothesis_ids: dict[str, list[str]] = {}
+        for h, method in selected_pairs:
+            method_hypothesis_ids.setdefault(method, []).append(h.id)
 
         self._log_methodology({
             "phase": "hypothesis_generation",
@@ -271,8 +300,52 @@ class AutonomousRunner:
             "bonferroni_n": n_tests,
             "adjusted_alpha": (selected[0].significance_threshold / n_tests) if selected else None,
         })
+        self._log_methodology({
+            "phase": "hypothesis_sources",
+            "method_hypothesis_ids": method_hypothesis_ids,
+        })
 
         return selected
+
+    def compute_method_weights(self) -> dict[str, float]:
+        """Read methodology.jsonl to compute per-method promotion rate.
+
+        Uses Laplace smoothing: (promotions + 1) / (promotions + kills + 2).
+        Methods with no history get 0.5 (neutral). Reads hypothesis_sources
+        records to map method → hypothesis_id, then decision records for outcomes.
+        """
+        if not self.methodology_log.exists():
+            return {}
+
+        method_to_hyps: dict[str, set[str]] = {}
+        hyp_outcomes: dict[str, str] = {}
+
+        with open(self.methodology_log) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                phase = rec.get("phase", "")
+                if phase == "hypothesis_sources":
+                    for method, ids in rec.get("method_hypothesis_ids", {}).items():
+                        method_to_hyps.setdefault(method, set()).update(ids)
+                elif phase == "decision":
+                    hid = rec.get("hypothesis_id")
+                    action = rec.get("action")
+                    if hid and action:
+                        hyp_outcomes[hid] = action
+
+        weights: dict[str, float] = {}
+        for method, hyp_ids in method_to_hyps.items():
+            promotes = sum(1 for hid in hyp_ids if hyp_outcomes.get(hid) == "promote")
+            kills = sum(1 for hid in hyp_ids if hyp_outcomes.get(hid) == "kill")
+            weights[method] = (promotes + 1) / (promotes + kills + 2)
+
+        return weights
 
     def _build_composite_signal(self, h: Hypothesis, is_df: pd.DataFrame) -> pd.Series | None:
         """Build regime-holding signal from composite hypothesis.
@@ -723,6 +796,7 @@ class AutonomousRunner:
     def run_cycle(self) -> dict:
         """Execute one complete research cycle."""
         log.info("=== Starting research cycle ===")
+        self._emit_telemetry("cycle.started")
         cycle_report = {"timestamp": datetime.now(timezone.utc).isoformat(), "hypotheses": []}
 
         # Phase 1: Scan in-sample data for signals
@@ -832,6 +906,15 @@ class AutonomousRunner:
             cycle_report["hypotheses"].append(h_report)
 
             log.info("Hypothesis %s: %s → %s", h.id, h.claim[:60], decision)
+            self._emit_telemetry(
+                "hypothesis.decided",
+                level="info" if decision != "error" else "error",
+                details={
+                    "hypothesis_id": h.id,
+                    "decision": decision,
+                    "evidence_count": len(self.state.list_all("evidence")),
+                },
+            )
 
         # Phase 6: Report graph state
         graph = self.graph_store.load()
@@ -860,6 +943,7 @@ class AutonomousRunner:
                     "phase": "cycle_failure",
                     "error": str(e),
                 })
+                self._emit_telemetry("cycle.failed", level="error", details={"error": str(e)})
 
             log.info("Sleeping %ds until next cycle", interval_seconds)
             time.sleep(interval_seconds)

@@ -112,7 +112,7 @@ The production system runs as a continuous cycle:
 
 ## Development
 ```bash
-cd /opt/projects/atlas
+cd /opt/workspace/projects/atlas
 .venv/bin/pip install -e .
 .venv/bin/atlas --help
 .venv/bin/atlas scan --symbol BTC/USDT --timeframe 4h   # Debug: inspect signals
