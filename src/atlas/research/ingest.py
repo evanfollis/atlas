@@ -34,24 +34,6 @@ Finding-block schema (YAML-ish key: value, fenced by HTML comments):
 
 Everything after the closing `-->` is the human narrative; the system
 only cares about this block.
-
-Identity and concurrency properties
-------------------------------------
-Evidence ID is deterministic: sha256(hyp_id + ":" + exp_id + ":" + block_content_hash)[:16].
-Two concurrent workers ingesting the same file compute the same ev_id, so
-last-write-wins for the evidence file is benign (same logical content).
-
-The source_hash field (sha256[:16] of the raw YAML block) acts as a
-content snapshot: a post-ingest edit to the finding block produces a
-different ev_id on re-ingest, surfacing the mutation as a new record
-rather than silently overwriting.
-
-Revalidation queue is append-only; due_revalidations() deduplicates by
-experiment_id at read time, so concurrent appends don't produce
-duplicate scheduled re-runs.
-
-Known gap: file locking is not implemented. The single-process assumption
-holds for production use; concurrent multi-process ingest is not supported.
 """
 from __future__ import annotations
 

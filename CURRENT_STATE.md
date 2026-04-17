@@ -46,7 +46,6 @@ Three findings from the Codex review of `ingest.py` (review blocked for 5 cycles
   - Draft plan: (a) add `claim_canonical()` to `utils.py` that applies full normalization, (b) write a migration script similar to `scripts/migrate_claim_hash.py` that loads each hypothesis, re-hashes with the new function, renames the file, re-links experiments and evidence. (c) bump schema version.
   - Decision needed: whether to migrate 40 existing hypotheses or reset (research is early-stage). Migration script is ready either way.
 - **Live end-to-end path unvalidated**: No `atlas run --once` has run since the claim-hash migration (2+ ticks). Run this before shipping next feature.
-- **Multi-line docstring in ingest.py**: 15-line "Identity and concurrency properties" block added in c5b7a13 violates CLAUDE.md style policy. Content is correct; move to CLAUDE.md §Key Design Decisions instead.
 - **`created_at` non-determinism in concurrent evidence writes**: with atomic writes, two concurrent workers produce logically equivalent evidence records with different `created_at` values; last-write-wins. Cosmetic only — the ID and all substantive fields are identical.
 - **Backtest ≠ live performance**: known limitation, Phase 2.
 
