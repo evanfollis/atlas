@@ -1,5 +1,8 @@
 # Atlas — Scientific Causal Reasoning Engine
 
+context-always-load:
+  - CURRENT_STATE.md
+
 Autonomous research system that uses the scientific method to build causal graphs of validated knowledge. The system generates its own hypotheses, designs and runs experiments, evaluates evidence, and makes promotion/kill decisions — without human intervention. Domain-agnostic architecture, currently applied to crypto markets.
 
 **This is NOT a human-in-the-loop tool.** The CLI exists for development and debugging. Production Atlas runs as a continuous autonomous loop: signal intake → hypothesis generation → experiment execution → evidence evaluation → decision → graph update → repeat.
