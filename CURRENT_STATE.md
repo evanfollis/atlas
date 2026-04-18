@@ -1,6 +1,6 @@
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-17T14-23-10Z — reflection pass (claude-sonnet-4-6)
+**Last updated**: 2026-04-18T02-26-40Z — reflection pass (claude-sonnet-4-6)
 
 ---
 
@@ -11,6 +11,14 @@
 - **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`
 
 ## What just shipped
+
+### Housekeeping (commits 805f264 + 0faa536, 2026-04-17 19:23–19:24 UTC)
+Both commits were attended-session work (Opus 4.6), directly actioning prior-reflection proposals.
+
+- **805f264** — Closed stale telemetry-field carry-forward: workspace CLAUDE.md spec reconciled to `timestamp` (epoch ms integer). No atlas code change needed. Recorded as settled decision.
+- **0faa536** — Moved 15-line "Identity and concurrency properties" docstring out of `ingest.py` into CLAUDE.md §Key Design Decisions. Style policy compliance restored.
+
+**Branch status**: 2 commits ahead of origin/main (not pushed).
 
 ### Codex adversarial review fixes (commit c5b7a13, 2026-04-17 09:19 UTC)
 Three findings from the Codex review of `ingest.py` (review blocked for 5 cycles, landed via codex-exec path).
@@ -39,13 +47,9 @@ Three findings from the Codex review of `ingest.py` (review blocked for 5 cycles
 - Claim hash unified to [:16], evidence dedup, workspace telemetry, methodology feedback loop.
 
 ## Open items
-- **`/review` EROFS** — `/review` skill still blocked. Check `/opt/workspace/runtime/.handoff/` for resolution status. Note: this tick's changes were reviewed via Codex-exec path (adversarial review landed). The EROFS blocks the interactive `/review` skill only.
-- **Finding 1 — claim_hash as canonical identity (documented, not fixed)**:
-  - Raw claim text (strip()-only) is the key. Wording drift forks the same hypothesis; semantic duplicates silently merge.
-  - Fix requires: canonicalize before hashing (lowercase + whitespace-normalize + strip punctuation) + one-shot migration that re-keys all `.atlas/hypotheses/*.json` files. This is ADR-class — do not do it inline.
-  - Draft plan: (a) add `claim_canonical()` to `utils.py` that applies full normalization, (b) write a migration script similar to `scripts/migrate_claim_hash.py` that loads each hypothesis, re-hashes with the new function, renames the file, re-links experiments and evidence. (c) bump schema version.
-  - Decision needed: whether to migrate 40 existing hypotheses or reset (research is early-stage). Migration script is ready either way.
-- **Live end-to-end path unvalidated**: No `atlas run --once` has run since the claim-hash migration (2+ ticks). Run this before shipping next feature.
+
+- **`/review` EROFS** — `/review` skill still blocked. INBOX has a proposal to wire `adversarial-review.sh` into the tick prompt as a gate (`proposal-tick-prompt-adversarial-review-gate-2026-04-17T22-48Z.md`). General session must decide.
+- **Live end-to-end path unvalidated (URGENT — 3rd cycle escalation)**: No `atlas run --once` has run since the claim-hash migration (3+ ticks). Zero telemetry events emitted under current ev_id schema. Methodology feedback loop has no real signal. URGENT handoff filed: `URGENT-atlas-live-path-unvalidated.md`. If blocked on credentials, record the blocker explicitly.
 - **`created_at` non-determinism in concurrent evidence writes**: with atomic writes, two concurrent workers produce logically equivalent evidence records with different `created_at` values; last-write-wins. Cosmetic only — the ID and all substantive fields are identical.
 - **Backtest ≠ live performance**: known limitation, Phase 2.
 
@@ -55,8 +59,9 @@ Three findings from the Codex review of `ingest.py` (review blocked for 5 cycles
 ## Known gotchas
 - `.venv/bin/pytest` shebang points to old path. Use `.venv/bin/python -m pytest`.
 - `list_all()` in StateStore now skips `.tmp` files (suffix check added) — safe to have tmp files in state dirs during concurrent writes.
-- The migration script (`scripts/migrate_claim_hash.py`) is idempotent — safe to re-run.
-- Evidence `source_hash` is empty string `""` on records created before this tick (runner-generated evidence). Only ingest-pipeline evidence has it set. That's correct — the field is optional.
+- The migration script (`scripts/migrate_claim_hash.py`) is idempotent — safe to re-run. Current version handles the canonical-form migration (schema v2).
+- Ingest-created evidence IDs embed `hyp_id` in their hash. Post-migration, re-ingesting old findings would compute a different ev_id (new canonical hyp_id). This is cosmetic — the old evidence record persists; re-ingest creates a new record alongside it.
+- Evidence `source_hash` is empty string `""` on records created before c5b7a13 (runner-generated evidence). Only ingest-pipeline evidence has it set. That's correct — the field is optional.
 - `methodology.jsonl` has 3 pre-attribution records (no `generation_method`); methodology feedback loop will run on neutral weights until new records accumulate.
 
 ## Recent decisions
@@ -66,10 +71,10 @@ Three findings from the Codex review of `ingest.py` (review blocked for 5 cycles
 - **Revalidation queue is append-only**: dedup-on-read, not dedup-on-write.
 - **Pre-registered fields are immutable**: enforced in StateStore. Do not relax.
 - **Causality vs correlation distinction is load-bearing**: edges must represent tested causal claims.
-- **Telemetry field name reconciled (2026-04-17)**: atlas `runner.py::_emit_telemetry` emits `timestamp` (epoch ms integer). Workspace CLAUDE.md spec was reconciled to match on 2026-04-17 — no atlas code change needed.
+- **Telemetry field name reconciled (2026-04-17)**: atlas `runner.py::_emit_telemetry` emits `timestamp` (epoch ms integer). Workspace CLAUDE.md spec reconciled to match — no atlas code change needed.
+- **Claim-hash canonical migration (2026-04-18)**: Principal decided MIGRATE (not reset). `claim_canonical()` added to `utils.py` (lower + ws-collapse + strip trailing punct). All 42 hypotheses re-keyed, 123 experiments + 123 evidence re-linked, zero merges, zero orphans. Schema version bumped to 2. Known artifact: ingest-created evidence IDs embed old `hyp_id` — a re-ingest of old findings would generate a new ev_id rather than deduplicating against the migrated record.
 
 ## What the next agent must read first
 1. Run `.venv/bin/python -m pytest` to confirm 81/81 baseline.
-2. Run `atlas run --once` to validate the live exchange path (still unexercised since c1395bb migration — 2+ ticks overdue).
-3. Finding 1 (claim_hash canonical identity) is **documented but not fixed**. Read the Open Items section above for the concrete migration plan before touching claim hashing.
-4. Next highest-leverage items: run live path, claim-hash migration decision, on-chain/funding-rate signal detectors.
+2. Run `atlas run --once` to validate the live exchange path (overdue since claim-hash migration).
+3. Next highest-leverage items: push to origin/main, on-chain/funding-rate signal detectors.

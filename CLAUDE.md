@@ -152,7 +152,7 @@ src/atlas/
 ```
 
 ### Key Design Decisions (settled, don't re-derive)
-- **Hypothesis IDs are SHA-256 hashes of the claim text.** This gives durable identity across cycles — same claim always gets same ID, evidence accumulates. See `_claim_hash()` in `runner.py`.
+- **Hypothesis IDs are SHA-256 hashes of the canonicalized claim text.** `claim_canonical()` in `utils.py` normalizes: lowercase, whitespace-collapse, strip trailing punctuation. `claim_hash()` applies canonical form then hashes. This prevents wording drift from forking logically identical hypotheses. Schema version 2 (migrated 2026-04-18).
 - **Walk-forward validation replaces single 70/30 split.** Anchored expanding window with 5 OOS folds. Concatenated OOS returns used for statistical tests. Signal scan still restricted to training data only.
 - **Fee model: 26 bps (Kraken taker) deducted on every position change.** One-way cost of `fee_bps / 10_000` per position change; a full round trip costs 52 bps. Default 0 for unit tests, 26 in runner.
 - **Bonferroni correction is applied per cycle.** Alpha is divided by the number of hypotheses tested in a cycle. See `generate_hypotheses()` in `runner.py`.
