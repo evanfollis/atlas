@@ -49,7 +49,6 @@ Three findings from the Codex review of `ingest.py` (review blocked for 5 cycles
 ## Open items
 
 - **`/review` EROFS** — `/review` skill still blocked. INBOX has a proposal to wire `adversarial-review.sh` into the tick prompt as a gate (`proposal-tick-prompt-adversarial-review-gate-2026-04-17T22-48Z.md`). General session must decide.
-- **Live end-to-end path unvalidated (URGENT — 3rd cycle escalation)**: No `atlas run --once` has run since the claim-hash migration (3+ ticks). Zero telemetry events emitted under current ev_id schema. Methodology feedback loop has no real signal. URGENT handoff filed: `URGENT-atlas-live-path-unvalidated.md`. If blocked on credentials, record the blocker explicitly.
 - **`created_at` non-determinism in concurrent evidence writes**: with atomic writes, two concurrent workers produce logically equivalent evidence records with different `created_at` values; last-write-wins. Cosmetic only — the ID and all substantive fields are identical.
 - **Backtest ≠ live performance**: known limitation, Phase 2.
 
@@ -73,8 +72,8 @@ Three findings from the Codex review of `ingest.py` (review blocked for 5 cycles
 - **Causality vs correlation distinction is load-bearing**: edges must represent tested causal claims.
 - **Telemetry field name reconciled (2026-04-17)**: atlas `runner.py::_emit_telemetry` emits `timestamp` (epoch ms integer). Workspace CLAUDE.md spec reconciled to match — no atlas code change needed.
 - **Claim-hash canonical migration (2026-04-18)**: Principal decided MIGRATE (not reset). `claim_canonical()` added to `utils.py` (lower + ws-collapse + strip trailing punct). All 42 hypotheses re-keyed, 123 experiments + 123 evidence re-linked, zero merges, zero orphans. Schema version bumped to 2. Known artifact: ingest-created evidence IDs embed old `hyp_id` — a re-ingest of old findings would generate a new ev_id rather than deduplicating against the migrated record.
+- **Live path validated (2026-04-18)**: `atlas run --once` completed successfully. No exchange credentials needed (public OHLCV only). 5 hypotheses generated with canonical IDs, all "continue" (4h datasets too short for 5-fold walk-forward — 721 < 833 bars). Telemetry events emitted to workspace events.jsonl. The URGENT handoff claim that `ATLAS_EXCHANGE_API_KEY` was needed was incorrect — no code path reads it.
 
 ## What the next agent must read first
 1. Run `.venv/bin/python -m pytest` to confirm 81/81 baseline.
-2. Run `atlas run --once` to validate the live exchange path (overdue since claim-hash migration).
-3. Next highest-leverage items: push to origin/main, on-chain/funding-rate signal detectors.
+2. Next highest-leverage items: push to origin/main (4 commits ahead), on-chain/funding-rate signal detectors, 1h data for walk-forward (4h datasets are currently too short).
