@@ -127,7 +127,7 @@ cd /opt/workspace/projects/atlas
 
 ```
 src/atlas/
-├── models/           # Pydantic domain objects (all map to context-repository canonical objects)
+├── models/           # Pydantic domain objects for the research loop
 │   ├── hypothesis.py   # CriticalAssumption specialization — falsifiable claim + pre-registered alpha
 │   ├── experiment.py   # Probe specialization — bounded test with success/failure criteria
 │   ├── evidence.py     # Typed observation: class (backtest/OOS/live/etc), quality, direction
