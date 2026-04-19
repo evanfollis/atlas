@@ -33,11 +33,10 @@ from atlas.utils import claim_hash as _claim_hash
 
 log = logging.getLogger("atlas.runner")
 
-# Pairs and timeframes to scan
+# Pairs and timeframes to scan.
+# 1h gives ~4300 bars (6 months) which clears the 833-bar walk-forward minimum.
+# 4h yields only ~720 bars — below the gate, so every hypothesis stalls at "continue".
 DEFAULT_UNIVERSE = [
-    ("BTC/USDT", "4h"),
-    ("ETH/USDT", "4h"),
-    ("SOL/USDT", "4h"),
     ("BTC/USDT", "1h"),
     ("ETH/USDT", "1h"),
     ("SOL/USDT", "1h"),
@@ -206,8 +205,8 @@ class AutonomousRunner:
 
         extra_signals = cross_signals + composite_signals
         if extra_signals:
-            # Attach extra signals to the BTC/USDT 4h anchor
-            anchor = ("BTC/USDT", "4h")
+            # Attach extra signals to the BTC/USDT 1h anchor
+            anchor = ("BTC/USDT", "1h")
             anchor_found = False
             for idx, (sym, tf, sigs, df) in enumerate(results):
                 if (sym, tf) == anchor:
@@ -875,7 +874,7 @@ class AutonomousRunner:
                     break
 
             if not datasets:
-                symbol, timeframe = "BTC/USDT", "4h"
+                symbol, timeframe = "BTC/USDT", "1h"
                 df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=100000)
                 datasets.append((symbol, timeframe, df))
 

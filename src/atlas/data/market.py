@@ -49,8 +49,11 @@ class MarketData:
         since: str | None = None,
         limit: int = 100000,
     ) -> pd.DataFrame:
-        # Map USDT symbols to exchange-native pairs
-        exchange_symbol = _BITSTAMP_SYMBOLS.get(symbol, symbol)
+        # Map USDT symbols to exchange-native pairs (Bitstamp uses USD, not USDT)
+        if self.exchange.id == "bitstamp":
+            exchange_symbol = _BITSTAMP_SYMBOLS.get(symbol, symbol)
+        else:
+            exchange_symbol = symbol
 
         since_ts = int(datetime.fromisoformat(since).timestamp() * 1000) if since else None
         cache_key = self._cache_key("ohlcv", exchange_symbol, timeframe, since_ts or 0, limit)

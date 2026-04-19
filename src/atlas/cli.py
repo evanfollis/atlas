@@ -476,7 +476,7 @@ def status() -> None:
 @cli.command("run")
 @click.option("--once", is_flag=True, help="Run one cycle and exit")
 @click.option("--interval", default=3600, help="Seconds between cycles (continuous mode)")
-@click.option("--exchange", default="kraken", help="Exchange to use")
+@click.option("--exchange", default="bitstamp", help="Exchange to use (bitstamp for deep history)")
 def run_autonomous(once: bool, interval: int, exchange: str) -> None:
     """Run the autonomous research loop."""
     import logging

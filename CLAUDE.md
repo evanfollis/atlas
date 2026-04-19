@@ -16,7 +16,7 @@ Autonomous research system that uses the scientific method to build causal graph
 - **Statistical claims must be honest.** Never claim a test adjusts for something it doesn't. If a test assumes iid/normal returns and crypto returns aren't, say so explicitly.
 - **The causal graph earns its name or loses it.** Edges must represent tested causal claims, not correlations. If we can't justify causality, call it a dependency graph. Don't let branding outrun implementation.
 - **Log methodology, not just results.** Record what search/generation methods produced each hypothesis, what worked, what didn't, and why. This is how the system learns to generate better hypotheses.
-- **Default exchange is Kraken.** Binance and Bybit are blocked from the Hetzner US server.
+- **Default exchange is Bitstamp** for the runner (deep OHLCV pagination, 6+ years of 1h data). Kraken caps at ~720 bars per timeframe — insufficient for walk-forward validation. Binance and Bybit are blocked from the Hetzner US server.
 
 ### What NOT to Do
 - Don't add speculative infrastructure. Build for the current autonomous loop, not hypothetical future ones.
@@ -162,7 +162,7 @@ src/atlas/
 - **Evidence quality requires BOTH Sharpe significance AND bootstrap significance** for "strong" classification. Single-test significance only earns "moderate".
 - **Promotion gate blocks on ANY strong contradictory evidence** and requires evidence from distinct experiments (not duplicate recordings).
 - **Pre-registered fields are immutable.** `_save_obj()` in `cli.py` enforces this for hypotheses and experiments. The runner bypasses this (it writes directly) — this is a known gap; see below.
-- **Default exchange is Kraken.** Binance and Bybit are geo-blocked from the Hetzner US server (Hillsboro, OR).
+- **Default exchange is Bitstamp.** Provides deep OHLCV history via pagination (99K+ 1h bars for BTC). Kraken caps at ~720 bars regardless of `since` parameter — below the 833-bar walk-forward minimum. Binance and Bybit are geo-blocked from the Hetzner US server (Hillsboro, OR).
 - **Evidence ID is deterministic.** `sha256(hyp_id + ":" + exp_id + ":" + block_content_hash)[:16]`. Two concurrent workers ingesting the same file compute the same ev_id; last-write-wins is benign (same logical content). The `source_hash` field (`sha256[:16]` of the raw YAML block) acts as a content snapshot — a post-ingest edit produces a different ev_id, surfacing the mutation as a new record rather than silently overwriting.
 - **StateStore writes are atomic.** `save()` writes to a tmpfile then renames via `os.replace`. Readers never observe a partial write.
 - **Revalidation queue is append-only.** `due_revalidations()` deduplicates by experiment_id at read time, so concurrent or repeated appends don't produce duplicate scheduled re-runs. Known gap: file locking is not implemented; the single-process assumption holds for production use.
