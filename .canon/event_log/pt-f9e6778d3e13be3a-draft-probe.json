@@ -1,0 +1,22 @@
+{
+  "binding": "binding",
+  "emitted_at": "2026-04-12T00:52:50.063126Z",
+  "emitter": "L3:atlas",
+  "event_kind": "phase_transition",
+  "id": "pt-f9e6778d3e13be3a-draft-probe",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "EventLogEntry",
+  "phase_transition": {
+    "claim_id": "f9e6778d3e13be3a",
+    "from_phase": "draft",
+    "to_phase": "probe"
+  },
+  "role_declared_at": "2026-04-12T00:52:50.063126Z",
+  "roles": [
+    "EventLogEntry"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "subject_id": "f9e6778d3e13be3a"
+}

@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:16811d9ed73243b75ca170a473c59a6f4edf2ec627a66d4169b8b4f08eaf9e6e",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/7e8c79b84702e912.json",
+    "version": "1776514637"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-12T00:59:13.605933Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Short position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)"
+  ],
+  "id": "7e8c79b84702e912",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-12T00:59:13.605933Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "Bearish multi-source confluence in ETH/USDT: greed + distribution + rally marks structural top (291 events)",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:05cb65c880508fe7bf7f1b16b148579597757c741158f90ba3584355a4d9e8a7",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/268223ac6161db5b.json",
+    "version": "1776514637"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-12T00:56:47.232355Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Long position on on-chain divergence with 20-bar hold does not produce significant returns (p > alpha)"
+  ],
+  "id": "268223ac6161db5b",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-12T00:56:47.232355Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "Bullish on-chain divergence in SOL/USDT: price falling but on-chain volume rising signals accumulation by large holders (102 events)",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

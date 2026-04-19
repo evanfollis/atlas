@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:c0acc7691ad96d2780f9372d6d10a1b6d05d06bfb33b1f30c9a554fdd455f871",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/8c4bedb2785cc43f.json",
+    "version": "1776514637"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-12T00:54:03.758429Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Long position on on-chain divergence with 20-bar hold does not produce significant returns (p > alpha)"
+  ],
+  "id": "8c4bedb2785cc43f",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-12T00:54:03.758429Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "Bullish on-chain divergence in BTC/USDT: price falling but on-chain volume rising signals accumulation by large holders (27 events)",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:49473b4c49acf0f86e9544d5e65ae602b38b2deb8b12545a442d96bd9524037b",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/d1f046f793889b44.json",
+    "version": "1776514745"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-18T12:19:05.180721Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Short-EOM strategy (last 3 days of month) does not produce significant returns vs always-flat baseline (p > alpha)"
+  ],
+  "id": "d1f046f793889b44",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-18T12:19:05.180721Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "ETH/USDT exhibits negative drift in last 3 days of month (-0.516% per bar vs rest, n=36) \u2014 short EOM strategy",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

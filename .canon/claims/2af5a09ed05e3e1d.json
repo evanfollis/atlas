@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:cd020be50137fdef47edca686b3397a2a75aa8c67d88852ead33ec3c221d3150",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/2af5a09ed05e3e1d.json",
+    "version": "1776514637"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-12T00:56:47.232336Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Long position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)"
+  ],
+  "id": "2af5a09ed05e3e1d",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-12T00:56:47.232336Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "Bullish multi-source confluence in SOL/USDT: fear + accumulation + drawdown marks structural buying opportunity (22 events)",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

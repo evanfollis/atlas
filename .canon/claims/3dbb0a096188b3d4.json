@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:5b96c27800a3168ce81314f4fcf172eef6d02c2c4a543419cb7380acf41a8c35",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/3dbb0a096188b3d4.json",
+    "version": "1776514637"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-12T00:59:13.605914Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Buy-at-fear strategy with 20-bar holding period does not produce significant positive returns (p > alpha)"
+  ],
+  "id": "3dbb0a096188b3d4",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-12T00:59:13.605914Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "Extreme fear (FNG<25) during drawdown in ETH/USDT marks capitulation \u2014 buying and holding 20 bars yields positive returns (100% win rate across 11 events)",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

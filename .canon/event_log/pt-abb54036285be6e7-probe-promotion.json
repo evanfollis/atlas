@@ -1,0 +1,22 @@
+{
+  "binding": "binding",
+  "emitted_at": "2026-04-12T00:55:33.729493Z",
+  "emitter": "L3:atlas",
+  "event_kind": "phase_transition",
+  "id": "pt-abb54036285be6e7-probe-promotion",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "EventLogEntry",
+  "phase_transition": {
+    "claim_id": "abb54036285be6e7",
+    "from_phase": "probe",
+    "to_phase": "promotion"
+  },
+  "role_declared_at": "2026-04-12T00:55:33.729493Z",
+  "roles": [
+    "EventLogEntry"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "subject_id": "abb54036285be6e7"
+}

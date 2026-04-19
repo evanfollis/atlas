@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:a243d861f161e459e98f8e8cf7cc299cd59664de97878db33181018bea68a1ef",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/abb54036285be6e7.json",
+    "version": "1776514637"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-12T00:55:33.729493Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Short position on on-chain divergence with 20-bar hold does not produce significant returns (p > alpha)"
+  ],
+  "id": "abb54036285be6e7",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-12T00:55:33.729493Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "Bearish on-chain divergence in ETH/USDT: price rising but on-chain volume declining signals speculative rally without real activity (89 events)",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "amendment_authority": [
+    "L3:atlas",
+    "human:evan"
+  ],
+  "binding": "binding",
+  "class": "operational",
+  "effective_from": "2026-04-19T04:17:03.733816Z",
+  "effective_until": null,
+  "emitted_at": "2026-04-19T04:17:03.733816Z",
+  "emitter": "L3:atlas",
+  "field_path": "evidence.tier_mapping",
+  "id": "atlas.evidence_quality_to_canon_tier",
+  "issuer": "L3:atlas",
+  "layer": "L3",
+  "object_type": "Policy",
+  "provenance": [
+    {
+      "effective_from": "2026-04-19T04:17:03.733816Z",
+      "version": "1"
+    }
+  ],
+  "ratification_rule": {
+    "kind": "principal_signoff",
+    "signatories": [
+      "human:evan"
+    ]
+  },
+  "role_declared_at": "2026-04-19T04:17:03.733816Z",
+  "roles": [
+    "Policy"
+  ],
+  "rollback_rule": {
+    "precedence": [
+      "spec_version_bump"
+    ],
+    "rules": [
+      {
+        "condition": "canon.spec_version has advanced beyond this Policy's spec_version and the target_enum has changed",
+        "id": "spec_version_bump",
+        "restore_version": "previous"
+      }
+    ]
+  },
+  "scope": "L3:atlas",
+  "sources": [],
+  "spec_version": "0.1.0",
+  "value": {
+    "rules": [
+      {
+        "rationale": "in-sample only, pre-external-commitment",
+        "then_tier": "internal_operational",
+        "when": {
+          "quality": "weak"
+        }
+      },
+      {
+        "rationale": "significant but single test",
+        "then_tier": "external_conversation",
+        "when": {
+          "quality": "moderate"
+        }
+      },
+      {
+        "rationale": "OOS / multi-test significance \u2014 committed to dataset",
+        "then_tier": "external_commitment",
+        "when": {
+          "evidence_class_not": "live_observation",
+          "quality": "strong"
+        }
+      },
+      {
+        "rationale": "actual market behavior observed",
+        "then_tier": "external_transaction",
+        "when": {
+          "evidence_class": "live_observation",
+          "quality": "strong"
+        }
+      }
+    ],
+    "source_enum": "atlas.EvidenceQuality",
+    "target_enum": "canon.tier"
+  },
+  "version": "1"
+}

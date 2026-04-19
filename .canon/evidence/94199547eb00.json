@@ -1,0 +1,26 @@
+{
+  "artifact": {
+    "content_hash": "sha256:4070bffe56161ec8594cac3b3caee2ca869ec7835b4be708ce9d502de13a187e",
+    "media_type": "application/json",
+    "uri": "file://.atlas/evidence/94199547eb00.json",
+    "version": "1776514637"
+  },
+  "binding": "binding",
+  "claim_id": "fab963ee35dbecf5",
+  "emitted_at": "2026-04-12T00:56:51.925725Z",
+  "emitter": "L3:atlas",
+  "evidence_type": "out_of_sample_test",
+  "id": "94199547eb00",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Evidence",
+  "observed_at": "2026-04-12T00:56:51.925725Z",
+  "polarity": "neutral",
+  "role_declared_at": "2026-04-12T00:56:51.925725Z",
+  "roles": [
+    "Evidence"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "tier": "internal_operational"
+}

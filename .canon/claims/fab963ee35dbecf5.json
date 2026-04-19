@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:d2eae40ea5bfb830cbd1d8a2ae36ee9a5af7d2516bf8ae22fbfc6e226437068e",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/fab963ee35dbecf5.json",
+    "version": "1776514637"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-12T00:56:47.232330Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Sell-at-greed strategy with 20-bar holding period does not produce significant negative returns for the asset (p > alpha)"
+  ],
+  "id": "fab963ee35dbecf5",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-12T00:56:47.232330Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "Extreme greed (FNG>75) during rally in SOL/USDT marks euphoria \u2014 selling and holding 20 bars captures reversal (67% reversal rate across 49 events)",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

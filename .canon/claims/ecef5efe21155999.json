@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:1a2d35e1cfbadd718ed91b1c2997c9d541c317c63a2f1fb27efc56d25b95e948",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/ecef5efe21155999.json",
+    "version": "1776514637"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-12T01:02:17.065950Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Short-EOM strategy (last 3 days of month) does not produce significant returns vs always-flat baseline (p > alpha)"
+  ],
+  "id": "ecef5efe21155999",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-12T01:02:17.065950Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "BTC/USDT exhibits negative drift in last 3 days of month (-0.116% per bar vs rest, n=252) \u2014 short EOM strategy",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

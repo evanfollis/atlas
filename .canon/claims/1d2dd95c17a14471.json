@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:86da653eba01ce597496cbe16afc0f615685c9da4981555c4b5a197fb1fd9391",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/1d2dd95c17a14471.json",
+    "version": "1776514637"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-12T00:56:47.232343Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Short position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)"
+  ],
+  "id": "1d2dd95c17a14471",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-12T00:56:47.232343Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "Bearish multi-source confluence in SOL/USDT: greed + distribution + rally marks structural top (67 events)",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

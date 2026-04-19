@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:a511786d6084296f40318839c4aa38adbea4d1045af18677b20cc3be23f3f2ba",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/4fdf3a65763ab083.json",
+    "version": "1776514637"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-14T12:58:31.864007Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "OOS |t| < threshold or sign-flip IS\u2192OOS"
+  ],
+  "id": "4fdf3a65763ab083",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-14T12:58:31.864007Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "Extreme BitMEX BTC funding prints (rolling 1y q01/q99) predict mean-reverting BTC 3-day forward CAR",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}
