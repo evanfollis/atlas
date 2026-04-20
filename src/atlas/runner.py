@@ -911,7 +911,7 @@ class AutonomousRunner:
                 details={
                     "hypothesis_id": h.id,
                     "decision": decision,
-                    "evidence_count": len(self.state.list_all("evidence")),
+                    "total_evidence_store_size": len(self.state.list_all("evidence")),
                 },
             )
 
