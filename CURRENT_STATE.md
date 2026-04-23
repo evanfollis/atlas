@@ -1,6 +1,6 @@
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-23T17-20Z — canon gap closure (4-item handoff): Decision backfill, migration transactionality, sources= parameter, SOL min-bars guard; tests 107/107
+**Last updated**: 2026-04-23T17-30Z — canon gap closure verified by tick; commit d81681a confirmed pushed; adversarial review confirmed (17-13Z); tests 107/107
 
 ---
 
@@ -12,7 +12,7 @@
 
 ## What just shipped
 
-### Canon adapter + migration gap closure (2026-04-23T17Z) — UNCOMMITTED
+### Canon adapter + migration gap closure (2026-04-23T17Z) — PUSHED (commit d81681a)
 Session executed the 4-item `atlas-canon-gap-fixes-2026-04-23T17-05Z.md` handoff:
 
 - **Decision backfill** — `src/atlas/adapters/discovery/migrate.py` now emits Decision envelopes for FALSIFIED hypotheses (kind=`kill`, deterministic id `dec-{hyp_id}-kill`). 40 Decision envelopes written to `.canon/decisions/` on this session's re-run.
