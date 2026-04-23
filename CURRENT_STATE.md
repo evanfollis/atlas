@@ -1,6 +1,13 @@
+---
+name: CURRENT_STATE
+description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
+type: front-door
+updated: 2026-04-23
+---
+
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-23T17-30Z — canon gap closure verified by tick; commit d81681a confirmed pushed; adversarial review confirmed (17-13Z); tests 107/107
+**Last updated**: 2026-04-23T18-10Z — M1+M2 retrofit (frontmatter + index.md); canon gap closure (commit d81681a) still in place; tests 107/107
 
 ---
 
@@ -105,6 +112,7 @@ Session c5472d70 (Opus 4.7) resolved all 4 pending handoffs and closed both URGE
 - **Canon adapter Decision coverage**: `.canon/decisions/` holds 40 `kill` Decision envelopes (one per FALSIFIED hypothesis). PROMOTED/SUPPORTED status does not today produce a Decision envelope — that path runs through the primitive promotion gate and is deliberately not backfilled. Re-run the adapter migration (`python -m atlas.adapters.discovery.migrate --atlas .`) after any `.atlas/` change to refresh.
 
 ## Recent decisions
+- **2026-04-23 — M1+M2 retrofit (context-repo pattern pass 2)**: added frontmatter to 3 core files (CLAUDE.md, CURRENT_STATE.md, README.md), generated `index.md`, copied `scripts/build-index.sh` from context-repository (no modifications). 23 artifact-class files (`findings/`, `.reviews/`, `MAPPING.md`) left unindexed pending per-file frontmatter by domain-aware sessions. Known gap: reflections update CURRENT_STATE.md uncommitted until M5 enforcement ADR ships — spec §Known limitations L1 in practice, not a retrofit failure.
 - **ADR-0026 (2026-04-19)**: agentstack chartered as third canon instance; atlas adapter shipped as first reference implementation. Adapter-first, L2 runtime extraction deferred.
 - **Claim hash canonical: [:16] of SHA-256 with lowercase + ws-collapse + strip trailing punct**. `claim_canonical()` in `utils.py`. Schema v2.
 - **Evidence ID is deterministic**: `sha256(hyp_id:exp_id:block_content_hash)[:16]`.

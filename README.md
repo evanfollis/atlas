@@ -1,3 +1,10 @@
+---
+name: Atlas README
+description: Repo overview — causal reasoning engine for pre-registered research, hypothesis generation, typed evidence, causal graph promotion
+type: reference
+updated: 2026-04-23
+---
+
 # Atlas
 
 Atlas is a causal reasoning engine for structuring research questions, hypotheses, evidence, and next-step experiments.

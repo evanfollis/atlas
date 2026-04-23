@@ -1,3 +1,10 @@
+---
+name: CLAUDE directives
+description: Agent directives for atlas — scientific causal reasoning engine; always-load declaration
+type: directive
+updated: 2026-04-23
+---
+
 # Atlas — Scientific Causal Reasoning Engine
 
 context-always-load:
