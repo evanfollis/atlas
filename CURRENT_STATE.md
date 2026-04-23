@@ -1,6 +1,6 @@
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-20T17-00Z — URGENT carry-forward handoff resolved (telemetry rename + canon-adapter adversarial review)
+**Last updated**: 2026-04-23T16-50Z — stale URGENT handoff cleanup confirmed; tests 97/97
 
 ---
 
@@ -12,7 +12,7 @@
 
 ## What just shipped
 
-### URGENT carry-forward resolution (2026-04-20T17Z) — UNCOMMITTED
+### URGENT carry-forward resolution (2026-04-20T17Z) — PUSHED (commit 2004911)
 Session resolved both items on the URGENT handoff that had breached the 3-cycle carry-forward threshold:
 - **Telemetry rename**: `runner.py:914` `evidence_count` → `total_evidence_store_size`. Field name now accurately describes what it reports (total store size, not per-cycle count). 97/97 tests still pass.
 - **Canon adapter adversarial review**: `.reviews/1d627c3-canon-adapter-review-2026-04-20T17Z.md`. Codex (gpt-5.4) flagged three issues. See Open Items.
@@ -97,8 +97,8 @@ Session c5472d70 (Opus 4.7) resolved all 4 pending handoffs and closed both URGE
 
 ## What the next agent must read first
 1. Run `.venv/bin/python -m pytest` to confirm **97/97** baseline.
-2. ~~Push all unpushed commits~~ **DONE** — branch is clean and up to date with origin/main as of 2026-04-20T02:20Z.
-3. Fix `migrate.py` to emit Decision records for falsified hypotheses — call `emit_decision()` for each `status in (FALSIFIED, SUPPORTED, PROMOTED)`. Function is at `emit.py:265`.
-4. Read `.reviews/040c053-review-2026-04-18T22-51-16Z.md` — non-transactional migration (data-loss path) and merge-on-canonical gap still unaddressed.
-5. ~~Fix `runner.py:915` `evidence_count` field~~ **DONE** (renamed to `total_evidence_store_size`). ~~Invoke `/review` on the canon adapter~~ **DONE** via `supervisor/scripts/lib/adversarial-review.sh` — findings logged above under "Unresolved Codex findings".
-6. **SOL dataset gap**: SOL/USDT on Bitstamp produced no signals. Investigate whether SOL/USD 1h data is too short or signal detectors don't match. Only 2 datasets (BTC, ETH) used for cross-validation.
+2. ~~Delete stale URGENT handoff~~ **DONE 2026-04-23** — file is gone from `/opt/workspace/runtime/.handoff/`.
+3. Fix `migrate.py` + non-transactional migration together before re-running backfill: (a) add `emit_decision()` loop in `src/atlas/adapters/discovery/migrate.py`; (b) reorder `scripts/migrate_claim_hash.py` so Phase 3 deletes happen after Phases 4–5 complete. Re-run backfill after both fixes.
+4. Address `sources=[]` hardcoded in `emit.py:146–160` before dual-write lands — parameter is trivial now, costly after.
+5. Remove SOL from DEFAULT_UNIVERSE or add minimum-bars guard in `src/atlas/runner.py` — SOL/USDT produces zero signals, wastes Bonferroni budget.
+6. Read `.reviews/040c053-review-2026-04-18T22-51-16Z.md` — non-transactional migration (data-loss path) gap still unaddressed (bundled into item 3 above).
