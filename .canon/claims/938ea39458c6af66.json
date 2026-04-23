@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:72ae16fa0aeeddd80e9e9783546dab96aee02e05771bc6f15ce676e61c4944d8",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/938ea39458c6af66.json",
+    "version": "1776609434"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-19T14:37:14.332344Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Strategy of holding only on weekdays does not produce better risk-adjusted returns than always-long baseline (p > alpha)"
+  ],
+  "id": "938ea39458c6af66",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-19T14:37:14.332344Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "ETH/USDT weekend volatility is 18% lower than weekday \u2014 weekend-skip strategy avoids drawdown variance",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

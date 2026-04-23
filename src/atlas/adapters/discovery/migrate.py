@@ -37,11 +37,12 @@ from atlas.adapters.discovery.emit import (
     _sha256_bytes,
     canon_dir,
     emit_claim,
+    emit_decision,
     emit_event_log,
     emit_evidence,
     emit_policy_tier_mapping,
 )
-from atlas.models.evidence import Evidence
+from atlas.models.evidence import Evidence, EvidenceDirection
 from atlas.models.hypothesis import Hypothesis, HypothesisStatus
 
 
@@ -132,6 +133,12 @@ def migrate(atlas_root: Path, schema_dir: Path, dry_run: bool) -> int:
     ev_ok = ev_bad = 0
     event_ok = event_bad = 0
     pol_ok = pol_bad = 0
+    dec_ok = dec_bad = 0
+
+    # In-memory indexes so the Decision phase can look up both the hypothesis
+    # and its related evidence without re-reading disk. Keyed by hypothesis id.
+    hypothesis_index: dict[str, Hypothesis] = {}
+    evidence_index: dict[str, list[Evidence]] = {}
 
     # 1) Tier-mapping policy first (referenced by every Decision)
     pol = emit_policy_tier_mapping()
@@ -152,6 +159,7 @@ def migrate(atlas_root: Path, schema_dir: Path, dry_run: bool) -> int:
             hyp_bad += 1
             print(f"[PARSE] hypothesis {p.name}: {exc}", file=sys.stderr)
             continue
+        hypothesis_index[h.id] = h
         claim_env = emit_claim(h, atlas_root)
         errs = _validate(claim_env, validators, "Claim")
         if errs:
@@ -209,6 +217,7 @@ def migrate(atlas_root: Path, schema_dir: Path, dry_run: bool) -> int:
             ev_bad += 1
             print(f"[PARSE] evidence {p.name}: {exc}", file=sys.stderr)
             continue
+        evidence_index.setdefault(e.hypothesis_id, []).append(e)
         ev_env = emit_evidence(e, atlas_root)
         errs = _validate(ev_env, validators, "Evidence")
         if errs:
@@ -220,13 +229,75 @@ def migrate(atlas_root: Path, schema_dir: Path, dry_run: bool) -> int:
             ev_env, canon_root / "evidence" / f"{e.id}.json", dry_run,
         )
 
-    total_bad = hyp_bad + ev_bad + event_bad + pol_bad
+    # 4) Decisions — synthesize one Decision envelope per closed hypothesis.
+    # Atlas's current closed states: FALSIFIED → Decision.kind='kill'.
+    # PROMOTED/SUPPORTED decisions are not backfilled here because atlas's
+    # promotion gate runs at the primitive boundary, not at hypothesis close.
+    # (The runner emits event_log records for transitions but does not today
+    # generate Decision records in the canon sense — this backfill covers
+    # the one case that is unambiguous: a FALSIFIED hypothesis is a killed
+    # claim, period.)
+    DECISION_KIND_BY_STATUS = {
+        HypothesisStatus.FALSIFIED: "kill",
+    }
+    for h_id, h in sorted(hypothesis_index.items()):
+        kind = DECISION_KIND_BY_STATUS.get(h.status)
+        if not kind:
+            continue
+        related = evidence_index.get(h_id, [])
+        contradictions = [e for e in related if e.direction == EvidenceDirection.CONTRADICTS]
+        if contradictions:
+            rationale = (
+                f"Backfill: hypothesis FALSIFIED. "
+                f"Cited contradictory evidence: {[c.id for c in contradictions]}. "
+                f"Summaries: " + "; ".join(c.summary[:120] for c in contradictions[:3])
+            )
+        else:
+            rationale = (
+                "Backfill: hypothesis status=FALSIFIED in atlas store; "
+                "no contradictory evidence records found at backfill time "
+                "(may predate structured evidence attribution)."
+            )
+        # Decision time = latest evidence timestamp, or hypothesis created_at
+        # if the hypothesis was closed without any evidence records.
+        if related:
+            emitted_at = max(e.created_at for e in related)
+        else:
+            emitted_at = h.created_at
+
+        decision_id = f"dec-{h_id}-kill"
+        try:
+            dec_env = emit_decision(
+                decision_id=decision_id,
+                kind=kind,
+                hypothesis=h,
+                evidence=related,
+                rationale=rationale,
+                emitted_at=emitted_at,
+                atlas_path=atlas_root,
+            )
+        except Exception as exc:
+            dec_bad += 1
+            print(f"[DECISION] {decision_id}: {exc}", file=sys.stderr)
+            continue
+        errs = _validate(dec_env, validators, "Decision")
+        if errs:
+            dec_bad += 1
+            print(f"[DECISION] {decision_id}: {errs}", file=sys.stderr)
+            continue
+        dec_ok += 1
+        _write_envelope(
+            dec_env, canon_root / "decisions" / f"{decision_id}.json", dry_run,
+        )
+
+    total_bad = hyp_bad + ev_bad + event_bad + pol_bad + dec_bad
     mode = "dry-run" if dry_run else "write"
     print(
         f"[{mode}] "
         f"claims: {hyp_ok} ok / {hyp_bad} bad, "
         f"evidence: {ev_ok} ok / {ev_bad} bad, "
         f"events: {event_ok} ok / {event_bad} bad, "
+        f"decisions: {dec_ok} ok / {dec_bad} bad, "
         f"policies: {pol_ok} ok / {pol_bad} bad"
     )
     return 0 if total_bad == 0 else 1

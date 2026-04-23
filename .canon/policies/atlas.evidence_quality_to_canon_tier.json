@@ -5,9 +5,9 @@
   ],
   "binding": "binding",
   "class": "operational",
-  "effective_from": "2026-04-19T04:17:03.733816Z",
+  "effective_from": "2026-04-23T17:15:11.546100Z",
   "effective_until": null,
-  "emitted_at": "2026-04-19T04:17:03.733816Z",
+  "emitted_at": "2026-04-23T17:15:11.546100Z",
   "emitter": "L3:atlas",
   "field_path": "evidence.tier_mapping",
   "id": "atlas.evidence_quality_to_canon_tier",
@@ -16,7 +16,7 @@
   "object_type": "Policy",
   "provenance": [
     {
-      "effective_from": "2026-04-19T04:17:03.733816Z",
+      "effective_from": "2026-04-23T17:15:11.546100Z",
       "version": "1"
     }
   ],
@@ -26,7 +26,7 @@
       "human:evan"
     ]
   },
-  "role_declared_at": "2026-04-19T04:17:03.733816Z",
+  "role_declared_at": "2026-04-23T17:15:11.546100Z",
   "roles": [
     "Policy"
   ],

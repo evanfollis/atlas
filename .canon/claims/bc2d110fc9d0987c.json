@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:e3bd61f65f40f35c70a04438d0e27d0695ed5fe6b0e993df4f728cc2c28e18e2",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/bc2d110fc9d0987c.json",
+    "version": "1776608876"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-19T14:27:56.842743Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Strategy of holding only on weekdays does not produce better risk-adjusted returns than always-long baseline (p > alpha)"
+  ],
+  "id": "bc2d110fc9d0987c",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-19T14:27:56.842743Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "SOL/USDT weekend volatility is 29% lower than weekday \u2014 weekend-skip strategy avoids drawdown variance",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

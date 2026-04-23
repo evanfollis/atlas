@@ -14,6 +14,7 @@ import pytest
 
 from atlas.adapters.discovery import (
     emit_claim,
+    emit_decision,
     emit_evidence,
     emit_event_log,
     emit_policy_tier_mapping,
@@ -176,3 +177,103 @@ def test_policy_has_valid_provenance_chain():
     # rollback_rule precedence MUST be a permutation of rules[*].id (canon.md rule 4)
     rule_ids = [r["id"] for r in p["rollback_rule"]["rules"]]
     assert sorted(p["rollback_rule"]["precedence"]) == sorted(rule_ids)
+
+
+# --------------------------------------------------------------------------
+# emit_decision (Item 1 coverage)
+# --------------------------------------------------------------------------
+
+
+def test_decision_kill_cites_contradictions():
+    h = _make_hypothesis()
+    contra = _make_evidence(
+        experiment_id="exp-contra",
+        id="evidbad0000000ab",
+        direction=EvidenceDirection.CONTRADICTS,
+        summary="OOS Sharpe significantly negative",
+    )
+    dec = emit_decision(
+        decision_id=f"dec-{h.id}-kill",
+        kind="kill",
+        hypothesis=h,
+        evidence=[contra],
+        rationale="Falsified by OOS contradiction",
+        emitted_at=datetime.now(timezone.utc),
+        atlas_path=ATLAS_ROOT,
+    )
+    assert dec["object_type"] == "Decision"
+    assert dec["kind"] == "kill"
+    assert dec["candidate_claims"] == [h.id]
+    assert dec["chosen_claim_id"] == h.id
+    assert dec["cited_evidence"] == [contra.id]
+    assert len(dec["contradictions_addressed"]) == 1
+    assert dec["contradictions_addressed"][0]["treatment"] == "hard_gated"
+    assert dec["policies_in_force"][0]["policy_id"] == "atlas.evidence_quality_to_canon_tier"
+
+
+def test_decision_rejects_unknown_kind():
+    h = _make_hypothesis()
+    with pytest.raises(ValueError, match="atlas does not emit"):
+        emit_decision(
+            decision_id="dec-x",
+            kind="amend_policy",
+            hypothesis=h,
+            evidence=[],
+            rationale="nope",
+            atlas_path=ATLAS_ROOT,
+        )
+
+
+def test_decision_requires_promotion_id_when_promote():
+    h = _make_hypothesis()
+    with pytest.raises(ValueError, match="promotion_id required"):
+        emit_decision(
+            decision_id="dec-x",
+            kind="promote",
+            hypothesis=h,
+            evidence=[],
+            rationale="yes",
+            atlas_path=ATLAS_ROOT,
+        )
+
+
+# --------------------------------------------------------------------------
+# sources= parameter propagation (Item 3 coverage)
+# --------------------------------------------------------------------------
+
+
+def test_sources_parameter_propagates_through_emitters():
+    src = [{
+        "role": "Evidence",
+        "ref": "canon://other-instance/evidence/abc123",
+        "role_at_cite_time": "Evidence",
+    }]
+    claim = emit_claim(_make_hypothesis(), ATLAS_ROOT, sources=src)
+    assert claim["sources"] == src
+    ev = emit_evidence(_make_evidence(), ATLAS_ROOT, sources=src)
+    assert ev["sources"] == src
+    pol = emit_policy_tier_mapping(sources=src)
+    assert pol["sources"] == src
+    el = emit_event_log(
+        event_id="pt-y", event_kind="phase_transition",
+        emitted_at=datetime.now(timezone.utc),
+        claim_id="abc123def456abcd", from_phase="draft", to_phase="probe",
+        sources=src,
+    )
+    assert el["sources"] == src
+    dec = emit_decision(
+        decision_id="dec-y-kill", kind="kill",
+        hypothesis=_make_hypothesis(), evidence=[],
+        rationale="r", atlas_path=ATLAS_ROOT, sources=src,
+    )
+    assert dec["sources"] == src
+
+
+def test_sources_default_is_empty_list():
+    """Default is still [] so existing callers see no behavioral change."""
+    claim = emit_claim(_make_hypothesis(), ATLAS_ROOT)
+    ev = emit_evidence(_make_evidence(), ATLAS_ROOT)
+    pol = emit_policy_tier_mapping()
+    assert claim["sources"] == []
+    assert ev["sources"] == []
+    assert pol["sources"] == []

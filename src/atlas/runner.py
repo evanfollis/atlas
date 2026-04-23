@@ -42,6 +42,14 @@ DEFAULT_UNIVERSE = [
     ("SOL/USDT", "1h"),
 ]
 
+# Minimum bars a dataset must have before atlas will scan it for signals.
+# Set to the walk-forward minimum (833 bars) so any dataset we scan can also
+# sustain anchored-expanding walk-forward validation — otherwise we'd burn
+# Bonferroni budget on hypotheses that cannot clear the OOS gate regardless
+# of signal strength. Symbols below the floor are skipped and logged via
+# methodology so the skip is visible in telemetry instead of silent.
+MIN_BARS_FOR_RESEARCH = 833
+
 
 
 class AutonomousRunner:
@@ -115,9 +123,25 @@ class AutonomousRunner:
         Signals are detected on the first 70% of data to avoid OOS contamination.
         """
         results = []
+        skipped_short: set[tuple[str, str]] = set()
         for symbol, timeframe in DEFAULT_UNIVERSE:
             try:
                 df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=100000)
+                if len(df) < MIN_BARS_FOR_RESEARCH:
+                    skipped_short.add((symbol, timeframe))
+                    log.warning(
+                        "Skipping %s %s: %d bars < MIN_BARS_FOR_RESEARCH=%d",
+                        symbol, timeframe, len(df), MIN_BARS_FOR_RESEARCH,
+                    )
+                    self._log_methodology({
+                        "phase": "signal_intake",
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "skipped": "insufficient_history",
+                        "bars": len(df),
+                        "min_required": MIN_BARS_FOR_RESEARCH,
+                    })
+                    continue
                 split_idx = int(len(df) * oos_cutoff)
                 is_df = df.iloc[:split_idx]
 
@@ -145,14 +169,20 @@ class AutonomousRunner:
             split_idx = int(len(df) * oos_cutoff)
             is_data[(symbol, timeframe)] = df.iloc[:split_idx]
 
-        # Also load pairs not yet in results
+        # Also load pairs not yet in results. Honor the min-bars gate here
+        # so cross-asset detectors don't pair a short dataset against a
+        # long one (would produce signals atlas then can't walk-forward).
         for symbol, timeframe in DEFAULT_UNIVERSE:
-            if (symbol, timeframe) not in is_data:
-                try:
-                    df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=100000)
-                    is_data[(symbol, timeframe)] = df.iloc[:int(len(df) * oos_cutoff)]
-                except Exception:
-                    pass
+            if (symbol, timeframe) in is_data or (symbol, timeframe) in skipped_short:
+                continue
+            try:
+                df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=100000)
+                if len(df) < MIN_BARS_FOR_RESEARCH:
+                    skipped_short.add((symbol, timeframe))
+                    continue
+                is_data[(symbol, timeframe)] = df.iloc[:int(len(df) * oos_cutoff)]
+            except Exception:
+                pass
 
         timeframes_seen = set()
         for (sym, tf) in is_data:

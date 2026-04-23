@@ -1,0 +1,40 @@
+{
+  "binding": "binding",
+  "candidate_claims": [
+    "10f02584f7f20295"
+  ],
+  "chosen_claim_id": "10f02584f7f20295",
+  "cited_evidence": [
+    "0dda962d6039",
+    "4c9639c4544a",
+    "c7c03ca81e1f"
+  ],
+  "emitted_at": "2026-04-12T00:54:01.277782Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "id": "dec-10f02584f7f20295-kill",
+  "instance_id": "atlas",
+  "kind": "kill",
+  "layer": "L3",
+  "object_type": "Decision",
+  "policies_in_force": [
+    {
+      "class": "operational",
+      "policy_id": "atlas.evidence_quality_to_canon_tier",
+      "version": "1"
+    }
+  ],
+  "rationale": "Backfill: hypothesis status=FALSIFIED in atlas store; no contradictory evidence records found at backfill time (may predate structured evidence attribution).",
+  "role_declared_at": "2026-04-12T00:54:01.277782Z",
+  "roles": [
+    "Decision"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0"
+}

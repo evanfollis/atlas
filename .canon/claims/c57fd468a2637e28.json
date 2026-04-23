@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:9762caf9f07188ea7e861f7d047303ec14066f270de17ac2dd5f4c708b82d0af",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/c57fd468a2637e28.json",
+    "version": "1776608876"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-19T14:27:56.842685Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Long position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)"
+  ],
+  "id": "c57fd468a2637e28",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-19T14:27:56.842685Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "Bullish multi-source confluence in BTC/USDT: fear + accumulation + drawdown marks structural buying opportunity (146 events)",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

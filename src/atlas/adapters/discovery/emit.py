@@ -9,9 +9,12 @@ Conventions:
 - `emitter`  = "L3:atlas"  — atlas operates at the domain-layer (L3).
 - `layer`    = "L3".
 - `binding`  = "binding" for domain research claims (NOT meta-layer outputs).
-- `sources`  = []          — atlas does not currently cite upstream canon.
-                              Left empty (valid per schema) so the
-                              influence-firewall check is trivially satisfied.
+- `sources`  — caller-provided list of upstream canon SourceRefs. Defaults
+                to `[]` (no cited upstream canon) because atlas today does
+                not ingest canon records. When atlas begins citing canon
+                (dual-write, canon intake), the caller MUST pass the real
+                source list so the influence-firewall check reflects
+                actual provenance instead of a hardcoded lie.
 
 The `tier` mapping from atlas's 3-tier EvidenceQuality to canon's 4-tier
 enum is documented in MAPPING.md in this directory AND expressed as a canon
@@ -143,8 +146,16 @@ def _artifact_pointer(
 
 def _common_envelope(object_type: str, id_: str, emitted_at: str,
                      role_declared_at: str | None = None,
-                     binding: str = "binding") -> dict[str, Any]:
-    """Shared envelope fields for all canon object types."""
+                     binding: str = "binding",
+                     sources: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Shared envelope fields for all canon object types.
+
+    `sources` is the list of upstream canon SourceRefs this envelope cites.
+    Defaults to `[]` — valid for first-party atlas research that does not
+    ingest canon records. When atlas starts reading canon (dual-write or
+    canon intake), the caller MUST pass the real source list so the
+    influence-firewall check reflects actual provenance.
+    """
     return {
         "id": id_,
         "spec_version": SPEC_VERSION,
@@ -155,7 +166,7 @@ def _common_envelope(object_type: str, id_: str, emitted_at: str,
         "roles": [object_type],
         "role_declared_at": role_declared_at or emitted_at,
         "binding": binding,
-        "sources": [],
+        "sources": list(sources) if sources else [],
         "instance_id": INSTANCE_ID,
     }
 
@@ -165,7 +176,8 @@ def _common_envelope(object_type: str, id_: str, emitted_at: str,
 # --------------------------------------------------------------------------
 
 
-def emit_claim(h: Hypothesis, atlas_path: Path | str) -> dict[str, Any]:
+def emit_claim(h: Hypothesis, atlas_path: Path | str,
+               sources: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Atlas Hypothesis → canon Claim envelope.
 
     Mapping:
@@ -182,7 +194,7 @@ def emit_claim(h: Hypothesis, atlas_path: Path | str) -> dict[str, Any]:
     """
     atlas_path = Path(atlas_path)
     created = _iso(h.created_at)
-    envelope = _common_envelope("Claim", h.id, created, binding="binding")
+    envelope = _common_envelope("Claim", h.id, created, binding="binding", sources=sources)
     envelope["statement"] = h.claim
     envelope["falsification_criteria"] = [h.falsification_criteria]
     envelope["thresholds"] = {
@@ -207,7 +219,8 @@ def emit_claim(h: Hypothesis, atlas_path: Path | str) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
-def emit_evidence(e: Evidence, atlas_path: Path | str) -> dict[str, Any]:
+def emit_evidence(e: Evidence, atlas_path: Path | str,
+                  sources: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Atlas Evidence → canon Evidence envelope.
 
     Mapping:
@@ -222,7 +235,7 @@ def emit_evidence(e: Evidence, atlas_path: Path | str) -> dict[str, Any]:
     atlas_path = Path(atlas_path)
     created = _iso(e.created_at)
     envelope = _common_envelope(
-        "Evidence", e.id, created, binding="binding",
+        "Evidence", e.id, created, binding="binding", sources=sources,
     )
     # Evidence schema REQUIRES binding + sources + claim_id + evidence_type +
     # tier + polarity + artifact (beyond EnvelopeBase).
@@ -272,6 +285,7 @@ def emit_decision(
     emitted_at: str | datetime | None = None,
     atlas_path: Path | str,
     promotion_id: str | None = None,
+    sources: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Emit a canon Decision for an atlas cycle outcome.
 
@@ -296,7 +310,9 @@ def emit_decision(
     dt = emitted_at or datetime.now(timezone.utc)
     emitted = _iso(dt) if not isinstance(dt, str) else dt
 
-    envelope = _common_envelope("Decision", decision_id, emitted, binding="binding")
+    envelope = _common_envelope(
+        "Decision", decision_id, emitted, binding="binding", sources=sources,
+    )
     envelope["kind"] = kind
     envelope["candidate_claims"] = [hypothesis.id]
     envelope["chosen_claim_id"] = hypothesis.id
@@ -356,6 +372,7 @@ def emit_event_log(
     triggering_decision_id: str | None = None,
     methodology_artifact: dict[str, Any] | None = None,
     methodology_summary: str | None = None,
+    sources: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Emit a canon EventLogEntry.
 
@@ -376,7 +393,7 @@ def emit_event_log(
 
     emitted = _iso(emitted_at) if not isinstance(emitted_at, str) else emitted_at
     envelope = _common_envelope(
-        "EventLogEntry", event_id, emitted, binding="binding",
+        "EventLogEntry", event_id, emitted, binding="binding", sources=sources,
     )
     envelope["event_kind"] = event_kind
 
@@ -407,7 +424,10 @@ def emit_event_log(
 # --------------------------------------------------------------------------
 
 
-def emit_policy_tier_mapping(effective_from: str | datetime | None = None) -> dict[str, Any]:
+def emit_policy_tier_mapping(
+    effective_from: str | datetime | None = None,
+    sources: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """One-shot canon Policy declaring the quality→tier mapping for atlas.
 
     Written once at migration time. Referenced by every Decision's
@@ -418,7 +438,7 @@ def emit_policy_tier_mapping(effective_from: str | datetime | None = None) -> di
     emitted = _iso(ts) if not isinstance(ts, str) else ts
 
     envelope = _common_envelope(
-        "Policy", TIER_POLICY_ID, emitted, binding="binding",
+        "Policy", TIER_POLICY_ID, emitted, binding="binding", sources=sources,
     )
     # Policy schema has additionalProperties:false and does not list
     # instance_id; remove it so the envelope validates.

@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:b01edfa8af5e7d272b48f7150a450868f724c6dfa5e6637e096489b2c063a55f",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/bc0b2e817db369dc.json",
+    "version": "1776609747"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-19T14:37:14.332236Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Sharpe ratio of lag-2 contrarian strategy is not significantly different from zero (p > alpha)"
+  ],
+  "id": "bc0b2e817db369dc",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-19T14:37:14.332236Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "BTC/USDT 1h returns show negative autocorrelation at lag 2, enabling a mean-reversion strategy",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}

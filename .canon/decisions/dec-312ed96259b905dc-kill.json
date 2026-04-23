@@ -1,0 +1,57 @@
+{
+  "binding": "binding",
+  "candidate_claims": [
+    "312ed96259b905dc"
+  ],
+  "chosen_claim_id": "312ed96259b905dc",
+  "cited_evidence": [
+    "82125e5da28f",
+    "8d4e79e62b9a",
+    "90a54d6544c7"
+  ],
+  "contradictions_addressed": [
+    {
+      "evidence_id": "82125e5da28f",
+      "rationale": "Walk-forward OOS Sharpe=-2.18 (5 folds, p=0.360, \u03b1=0.0100). Bootstrap CI=[-4.97, 0.95]",
+      "treatment": "hard_gated"
+    },
+    {
+      "evidence_id": "8d4e79e62b9a",
+      "rationale": "Walk-forward OOS Sharpe=-2.13 (5 folds, p=0.364, \u03b1=0.0100). Bootstrap CI=[-4.77, 0.87]",
+      "treatment": "hard_gated"
+    },
+    {
+      "evidence_id": "90a54d6544c7",
+      "rationale": "Walk-forward OOS Sharpe=-2.37 (5 folds, p=0.349, \u03b1=0.0100). Bootstrap CI=[-5.28, 0.72]",
+      "treatment": "hard_gated"
+    }
+  ],
+  "emitted_at": "2026-04-12T01:02:44.697367Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "id": "dec-312ed96259b905dc-kill",
+  "instance_id": "atlas",
+  "kind": "kill",
+  "layer": "L3",
+  "object_type": "Decision",
+  "policies_in_force": [
+    {
+      "class": "operational",
+      "policy_id": "atlas.evidence_quality_to_canon_tier",
+      "version": "1"
+    }
+  ],
+  "rationale": "Backfill: hypothesis FALSIFIED. Cited contradictory evidence: ['82125e5da28f', '8d4e79e62b9a', '90a54d6544c7']. Summaries: Walk-forward OOS Sharpe=-2.18 (5 folds, p=0.360, \u03b1=0.0100). Bootstrap CI=[-4.97, 0.95]; Walk-forward OOS Sharpe=-2.13 (5 folds, p=0.364, \u03b1=0.0100). Bootstrap CI=[-4.77, 0.87]; Walk-forward OOS Sharpe=-2.37 (5 folds, p=0.349, \u03b1=0.0100). Bootstrap CI=[-5.28, 0.72]",
+  "role_declared_at": "2026-04-12T01:02:44.697367Z",
+  "roles": [
+    "Decision"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0"
+}

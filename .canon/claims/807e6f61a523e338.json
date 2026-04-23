@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "content_hash": "sha256:e5f274e57f7e11084d4bc5a75e4db37bd6a7a8b7beb9dce4b0eb037ff3044906",
+    "media_type": "application/json",
+    "uri": "file://.atlas/hypotheses/807e6f61a523e338.json",
+    "version": "1776609903"
+  },
+  "binding": "binding",
+  "emitted_at": "2026-04-19T14:37:14.332249Z",
+  "emitter": "L3:atlas",
+  "exposure": {
+    "blast_radius": "local",
+    "capital_at_risk": 0,
+    "correlation_tags": [],
+    "reversibility": "reversible",
+    "time_to_realization": "P0D"
+  },
+  "falsification_criteria": [
+    "Sharpe ratio of lag-7 momentum strategy is not significantly different from zero (p > alpha)"
+  ],
+  "id": "807e6f61a523e338",
+  "instance_id": "atlas",
+  "layer": "L3",
+  "object_type": "Claim",
+  "role_declared_at": "2026-04-19T14:37:14.332249Z",
+  "roles": [
+    "Claim"
+  ],
+  "sources": [],
+  "spec_version": "0.1.0",
+  "statement": "BTC/USDT 1h returns show positive autocorrelation at lag 7, enabling a momentum strategy",
+  "thresholds": {
+    "alpha": 0.05
+  }
+}
