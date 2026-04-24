@@ -953,6 +953,26 @@ class AutonomousRunner:
         log.info("=== Cycle complete: %d hypotheses tested, graph has %d nodes ===",
                  len(hypotheses), graph.node_count)
 
+        # Decision breakdown: how many hypotheses landed in each terminal state
+        # this cycle. A cycle where every decision is "continue" produces no new
+        # epistemic state — surfacing this explicitly is how meta-scan detects
+        # the frozen-loop failure mode (Pattern 2 of the 2026-04-24 synthesis).
+        decisions_by_kind: dict[str, int] = {}
+        for hrep in cycle_report["hypotheses"]:
+            kind = hrep.get("decision", "unknown")
+            decisions_by_kind[kind] = decisions_by_kind.get(kind, 0) + 1
+
+        self._emit_telemetry(
+            "cycle.completed",
+            details={
+                "hypotheses_evaluated": len(cycle_report["hypotheses"]),
+                "total_evidence_store_size": len(self.state.list_all("evidence")),
+                "signals_found": cycle_report.get("signals_found", 0),
+                "graph_nodes": graph.node_count,
+                "graph_edges": graph.edge_count,
+                "decisions_by_kind": decisions_by_kind,
+            },
+        )
         return cycle_report
 
     def run_continuous(self, interval_seconds: int = 3600) -> None:
