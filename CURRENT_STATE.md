@@ -2,20 +2,21 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-23T18-10Z — M1+M2 retrofit (frontmatter + index.md); canon gap closure (commit d81681a) still in place; tests 107/107
+**Last updated**: 2026-04-24T02-18Z — reflection pass; autonomous loop absence escalated to URGENT (5 days silent); 3 unresolved migration findings carry forward
 
 ---
 
 ## Deployed / running state
-- **Mode**: autonomous research loop (signal intake → hypothesis → experiment → evidence → graph update)
+- **Mode (designed)**: autonomous research loop (signal intake → hypothesis → experiment → evidence → graph update)
+- **Mode (actual, verified 2026-04-24T17Z)**: **NOT RUNNING**. No `atlas-runner.service` systemd unit exists; no `atlas run --interval` process is alive in any tmux session; `methodology.jsonl` last entry is `2026-04-19T14:37Z`; no atlas events in `/opt/workspace/runtime/.telemetry/events.jsonl` since the same date. The loop has never been deployed as a persistent service — it was last invoked manually by an attended session on 2026-04-19. Telemetry wiring is correct (`runner.py:95` writes to the shared workspace path with `sourceType=system`); the silence is real, not a measurement artifact.
 - **Domain**: crypto markets (Bitstamp for deep OHLCV history — Binance/Bybit blocked on Hetzner US server)
-- **Entry**: CLI for debugging; `atlas run --interval 3600` for production
-- **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`, `.canon/` (new)
+- **Entry**: CLI for debugging; `atlas run --interval 3600` is the *intended* production form per `CLAUDE.md`, but no service unit, sessions.conf entry, or supervisor wiring backs it.
+- **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`, `.canon/`
 
 ## What just shipped
 
@@ -110,6 +111,7 @@ Session c5472d70 (Opus 4.7) resolved all 4 pending handoffs and closed both URGE
 - Ingest-created evidence IDs embed `hyp_id` in their hash. Post-migration re-ingest produces a new ev_id — cosmetic, old record persists.
 - Evidence `source_hash` is `""` on records created before c5b7a13 — correct, field is optional.
 - **Canon adapter Decision coverage**: `.canon/decisions/` holds 40 `kill` Decision envelopes (one per FALSIFIED hypothesis). PROMOTED/SUPPORTED status does not today produce a Decision envelope — that path runs through the primitive promotion gate and is deliberately not backfilled. Re-run the adapter migration (`python -m atlas.adapters.discovery.migrate --atlas .`) after any `.atlas/` change to refresh.
+- `emit_policy_tier_mapping()` in `emit.py` uses `datetime.now()` — every re-run of the migration produces a timestamp-drifted policy file, creating working-tree noise. Pass a pinned `emitted_at` value if determinism is needed.
 
 ## Recent decisions
 - **2026-04-23 — M1+M2 retrofit (context-repo pattern pass 2)**: added frontmatter to 3 core files (CLAUDE.md, CURRENT_STATE.md, README.md), generated `index.md`, copied `scripts/build-index.sh` from context-repository (no modifications). 23 artifact-class files (`findings/`, `.reviews/`, `MAPPING.md`) left unindexed pending per-file frontmatter by domain-aware sessions. Known gap: reflections update CURRENT_STATE.md uncommitted until M5 enforcement ADR ships — spec §Known limitations L1 in practice, not a retrofit failure.
@@ -123,7 +125,8 @@ Session c5472d70 (Opus 4.7) resolved all 4 pending handoffs and closed both URGE
 - **Default exchange is Bitstamp (2026-04-19)**: Kraken caps OHLCV at ~720 bars regardless of `since` — below the 833-bar walk-forward minimum. Bitstamp provides 99K+ 1h bars via pagination.
 
 ## What the next agent must read first
-1. Run `.venv/bin/python -m pytest` to confirm **107/107** baseline.
-2. Address the 2026-04-23 merge-destructive finding: `scripts/migrate_claim_hash.py` silently collapses non-claim fields on hypotheses that share a canonical hash. Add an explicit `--allow-merge` gate and a merge-group test fixture. See `supervisor/.reviews/atlas-migration-reorder-2026-04-23T17-13Z.md`.
-3. If dual-write or canon-intake is next: rewire adapter callers to pass real `sources=` instead of default `[]`, and design a transaction for the `.atlas ↔ .canon` dual-write boundary. Adapter emitters already accept the kwarg.
-4. Audit ID-reference leakage: graph store, methodology log, and cycle snapshots may still carry old hypothesis IDs. `scripts/migrate_claim_hash.py` only rewrites `hypothesis_id`/`hyp_id` in experiments/evidence.
+1. **Check autonomous loop status first** — run `ps aux | grep 'atlas run'` and `systemctl status atlas-runner` (or equivalent). The loop has been silent for 5 days. See URGENT handoff `URGENT-atlas-loop-not-running-2026-04-24.md`.
+2. Run `.venv/bin/python -m pytest` to confirm **107/107** baseline.
+3. Address the 2026-04-23 merge-destructive finding: `scripts/migrate_claim_hash.py` silently collapses non-claim fields on hypotheses that share a canonical hash. Add an explicit `--allow-merge` gate and a merge-group test fixture. See `supervisor/.reviews/atlas-migration-reorder-2026-04-23T17-13Z.md`.
+4. If dual-write or canon-intake is next: rewire adapter callers to pass real `sources=` instead of default `[]`, and design a transaction for the `.atlas ↔ .canon` dual-write boundary. Adapter emitters already accept the kwarg.
+5. Audit ID-reference leakage: graph store, methodology log, and cycle snapshots may still carry old hypothesis IDs. `scripts/migrate_claim_hash.py` only rewrites `hypothesis_id`/`hyp_id` in experiments/evidence.
