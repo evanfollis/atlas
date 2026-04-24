@@ -7,18 +7,27 @@ updated: 2026-04-24
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-24T02-18Z — reflection pass; autonomous loop absence escalated to URGENT (5 days silent); 3 unresolved migration findings carry forward
+**Last updated**: 2026-04-24T12-30Z — autonomous loop deployed via systemd (commit pending); first cycle running; telemetry confirmed flowing
 
 ---
 
 ## Deployed / running state
-- **Mode (designed)**: autonomous research loop (signal intake → hypothesis → experiment → evidence → graph update)
-- **Mode (actual, verified 2026-04-24T17Z)**: **NOT RUNNING**. No `atlas-runner.service` systemd unit exists; no `atlas run --interval` process is alive in any tmux session; `methodology.jsonl` last entry is `2026-04-19T14:37Z`; no atlas events in `/opt/workspace/runtime/.telemetry/events.jsonl` since the same date. The loop has never been deployed as a persistent service — it was last invoked manually by an attended session on 2026-04-19. Telemetry wiring is correct (`runner.py:95` writes to the shared workspace path with `sourceType=system`); the silence is real, not a measurement artifact.
-- **Domain**: crypto markets (Bitstamp for deep OHLCV history — Binance/Bybit blocked on Hetzner US server)
-- **Entry**: CLI for debugging; `atlas run --interval 3600` is the *intended* production form per `CLAUDE.md`, but no service unit, sessions.conf entry, or supervisor wiring backs it.
-- **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`, `.canon/`
+- **Mode**: autonomous research loop (signal intake → hypothesis → experiment → evidence → graph update). **RUNNING** as of 2026-04-24T12:27Z under `systemctl status atlas-runner.service`. First post-deploy cycle emitted `cycle.started` and `hypothesis.decided` events to `/opt/workspace/runtime/.telemetry/events.jsonl`.
+- **Domain**: crypto markets (Bitstamp for deep OHLCV history — Binance/Bybit blocked on Hetzner US server).
+- **Entry**: production = `systemctl status/start/stop atlas-runner.service`. Debug = `.venv/bin/atlas run --once` from project root.
+- **Service unit**: `/etc/systemd/system/atlas-runner.service`; mirrored copy in repo at `deploy/atlas-runner.service` for re-installation. Re-install with `sudo install -m644 deploy/atlas-runner.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now atlas-runner.service`.
+- **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`, `.canon/`.
 
 ## What just shipped
+
+### Autonomous loop deployed via systemd (2026-04-24T12:27Z) — UNCOMMITTED
+Per principal authorization on `atlas-autonomous-loop-deploy-2026-04-24T12-40Z` handoff. Atlas now runs as a persistent systemd service:
+
+- **Unit**: `/etc/systemd/system/atlas-runner.service` — `Type=simple`, runs `.venv/bin/atlas run --interval 3600` as root from `/opt/workspace/projects/atlas`, `Restart=on-failure` with `RestartSec=300`, `StartLimitBurst=3` per `StartLimitIntervalSec=3600` so a startup bug can't burn Bitstamp quota in tight loops.
+- **Repo copy**: `deploy/atlas-runner.service` — same content, tracked in git for re-deployment after host re-image.
+- **State**: `active (running)` since `2026-04-24 12:27:52 UTC`. PID 587285.
+- **Telemetry**: `cycle.started` and `hypothesis.decided` events landing in `/opt/workspace/runtime/.telemetry/events.jsonl` with `sourceType=system`. SOL/USDT correctly skipped this cycle (`MIN_BARS_FOR_RESEARCH` guard fired with 0 bars returned by Bitstamp for that symbol).
+- **Closes**: `URGENT-atlas-loop-not-running-2026-04-24.md` (5-day silence resolved).
 
 ### Canon adapter + migration gap closure (2026-04-23T17Z) — PUSHED (commit d81681a)
 Session executed the 4-item `atlas-canon-gap-fixes-2026-04-23T17-05Z.md` handoff:

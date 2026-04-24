@@ -1,0 +1,20 @@
+[Unit]
+Description=Atlas autonomous research loop
+Documentation=file:///opt/workspace/projects/atlas/CLAUDE.md
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=3600
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/workspace/projects/atlas
+ExecStart=/opt/workspace/projects/atlas/.venv/bin/atlas run --interval 3600
+Restart=on-failure
+RestartSec=300
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
