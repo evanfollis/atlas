@@ -7,18 +7,24 @@ updated: 2026-04-24
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-24T12-30Z — autonomous loop deployed via systemd (commit pending); first cycle running; telemetry confirmed flowing
+**Last updated**: 2026-04-24T14-19-25Z — reflection pass; loop running 2 confirmed cycles; evidence store frozen at 133 (possible accumulation gap — see O1)
 
 ---
 
 ## Deployed / running state
-- **Mode**: autonomous research loop (signal intake → hypothesis → experiment → evidence → graph update). **RUNNING** as of 2026-04-24T12:27Z under `systemctl status atlas-runner.service`. First post-deploy cycle emitted `cycle.started` and `hypothesis.decided` events to `/opt/workspace/runtime/.telemetry/events.jsonl`.
+- **Mode**: autonomous research loop (signal intake → hypothesis → experiment → evidence → graph update). **RUNNING** as of 2026-04-24T12:27Z under `systemctl status atlas-runner.service`. Two post-deploy cycles confirmed (12:27Z and 13:29Z) — all 10 decisions `continue`, `total_evidence_store_size` frozen at 133. **Possible issue**: evidence IDs are deterministic; re-testing the same hypothesis with the same data window produces identical IDs, so the store never grows and all hypotheses remain "continue" indefinitely. Verify with `ls -1 .atlas/evidence/ | wc -l` after a third cycle.
 - **Domain**: crypto markets (Bitstamp for deep OHLCV history — Binance/Bybit blocked on Hetzner US server).
 - **Entry**: production = `systemctl status/start/stop atlas-runner.service`. Debug = `.venv/bin/atlas run --once` from project root.
 - **Service unit**: `/etc/systemd/system/atlas-runner.service`; mirrored copy in repo at `deploy/atlas-runner.service` for re-installation. Re-install with `sudo install -m644 deploy/atlas-runner.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now atlas-runner.service`.
 - **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`, `.canon/`.
 
 ## What just shipped
+
+## Known broken or degraded
+
+- **Evidence accumulation gap (suspected)**: `total_evidence_store_size` was 133 after backfill and remained 133 across the first two live cycles (12:27Z and 13:29Z). Deterministic evidence IDs may mean re-running the same hypothesis with the same data window generates identical IDs and the store never grows. All hypotheses will remain "continue" indefinitely if confirmed. This is the highest-priority diagnostic for the next attended session.
+- ~~**No `cycle.completed` event**~~ — **Fixed 2026-04-24T15:37Z (commit 66a3db7)**: `runner.py` now emits `cycle.completed` on the happy path with `decisions_by_kind` payload. First post-deploy emission confirmed `{"continue": 5}` across 5 hypotheses with `total_evidence_store_size=133` — the all-continue frozen-loop state is now directly visible in telemetry. (`cycle.failed` already existed at line 975.)
+- **`/review` EROFS** still blocks; workaround via `adversarial-review.sh` in use.
 
 ### Autonomous loop deployed via systemd (2026-04-24T12:27Z) — UNCOMMITTED
 Per principal authorization on `atlas-autonomous-loop-deploy-2026-04-24T12-40Z` handoff. Atlas now runs as a persistent systemd service:
@@ -134,8 +140,9 @@ Session c5472d70 (Opus 4.7) resolved all 4 pending handoffs and closed both URGE
 - **Default exchange is Bitstamp (2026-04-19)**: Kraken caps OHLCV at ~720 bars regardless of `since` — below the 833-bar walk-forward minimum. Bitstamp provides 99K+ 1h bars via pagination.
 
 ## What the next agent must read first
-1. **Check autonomous loop status first** — run `ps aux | grep 'atlas run'` and `systemctl status atlas-runner` (or equivalent). The loop has been silent for 5 days. See URGENT handoff `URGENT-atlas-loop-not-running-2026-04-24.md`.
-2. Run `.venv/bin/python -m pytest` to confirm **107/107** baseline.
-3. Address the 2026-04-23 merge-destructive finding: `scripts/migrate_claim_hash.py` silently collapses non-claim fields on hypotheses that share a canonical hash. Add an explicit `--allow-merge` gate and a merge-group test fixture. See `supervisor/.reviews/atlas-migration-reorder-2026-04-23T17-13Z.md`.
-4. If dual-write or canon-intake is next: rewire adapter callers to pass real `sources=` instead of default `[]`, and design a transaction for the `.atlas ↔ .canon` dual-write boundary. Adapter emitters already accept the kwarg.
-5. Audit ID-reference leakage: graph store, methodology log, and cycle snapshots may still carry old hypothesis IDs. `scripts/migrate_claim_hash.py` only rewrites `hypothesis_id`/`hyp_id` in experiments/evidence.
+1. **Verify evidence accumulation**: run `ls -1 .atlas/evidence/ | wc -l` and compare to 133. If unchanged after 3+ live cycles, evidence IDs are flat-lining (deterministic IDs + same data window = no new state). This is the system's highest-priority operational gap — the loop runs but learns nothing.
+2. **Check `total_evidence_store_size` logic in `runner.py`** — confirm whether the count reflects only this cycle's evidence or the full store. If full-store, understand why no new evidence records are written on each continue cycle.
+3. Run `.venv/bin/python -m pytest` to confirm **107/107** baseline.
+4. Address the 2026-04-23 merge-destructive finding: `scripts/migrate_claim_hash.py` silently collapses non-claim fields on hypotheses that share a canonical hash. Add an explicit `--allow-merge` gate and a merge-group test fixture. See `supervisor/.reviews/atlas-migration-reorder-2026-04-23T17-13Z.md`.
+5. Add `cycle.completed` / `cycle.failed` telemetry event to `runner.py` (see reflection O2).
+6. If dual-write or canon-intake is next: rewire adapter callers to pass real `sources=` instead of default `[]`, and design a transaction for the `.atlas ↔ .canon` dual-write boundary.
