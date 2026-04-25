@@ -7,23 +7,26 @@ updated: 2026-04-25
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-25T12:50Z — retest-window patch landed; 4 prior confirmed cycles were frozen at 133 evidence records because the tested-datasets guard blocked re-testing
+**Last updated**: 2026-04-25T16:00Z — frozen-loop fix DEPLOYED + verified (cycle.completed shows {kill:5}, evidence 133→143); --allow-merge gate landed; deploy-push gate landed
 
 ---
 
 ## Deployed / running state
-- **Mode**: autonomous research loop (signal intake → hypothesis → experiment → evidence → graph update). **RUNNING** as of 2026-04-24T12:27Z under `systemctl status atlas-runner.service`. Four post-deploy cycles confirmed — all 20 decisions `continue`, `total_evidence_store_size` frozen at 133. **Root cause confirmed (2026-04-25T02:17Z)**: `runner.py` tracked tested datasets per hypothesis and skipped re-testing any `(symbol, timeframe)` already in evidence. **Patch landed 2026-04-25T12:50Z**: existing dataset evidence is now treated as fresh for 1 day only; older evidence allows a retest against newly available market data.
+- **Mode**: autonomous research loop (signal intake → hypothesis → experiment → evidence → graph update). **RUNNING** as of 2026-04-24T12:27Z under `systemctl status atlas-runner.service`. Frozen-loop fix bf6fc4e deployed at 2026-04-25T15:45:12Z. First post-restart cycle.completed shows `{decisions_by_kind: {kill: 5}, total_evidence_store_size: 143}` — all 5 hypotheses correctly falsified with fresh evidence (was previously `{continue: 5}` frozen at 133). The freshness cache (`DATASET_RETEST_AFTER = 1 day`) is doing exactly what it should.
 - **Domain**: crypto markets (Bitstamp for deep OHLCV history — Binance/Bybit blocked on Hetzner US server).
 - **Entry**: production = `systemctl status/start/stop atlas-runner.service`. Debug = `.venv/bin/atlas run --once` from project root.
 - **Service unit**: `/etc/systemd/system/atlas-runner.service`; mirrored copy in repo at `deploy/atlas-runner.service` for re-installation. Re-install with `sudo install -m644 deploy/atlas-runner.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now atlas-runner.service`.
 - **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`, `.canon/`.
 
 ## What just shipped
+- **Frozen-loop fix deployed + verified (2026-04-25T15:58Z)**: bf6fc4e pushed and `atlas-runner.service` restarted at 15:45:12Z. First post-restart cycle.completed: `{decisions_by_kind: {kill: 5}, total_evidence_store_size: 143, signals_found: 22}`. Five hypotheses correctly falsified with fresh evidence (was 5 × continue, evidence frozen at 133).
+- **`--allow-merge` gate on `migrate_claim_hash.py` (commit 4977ad9)**: per `URGENT-atlas-migration-merge-collapse`. Merge groups now abort the migration with `SystemExit(2)` and a per-field divergence audit. Audit of current `.atlas/hypotheses/`: 59 records, 0 with `claim_variants` populated → no prior runs ever silently merged anything. Tests: 109 → 111.
+- **Deploy-push gate (commit 0fedaf2)**: `deploy/README.md` documents the rule (push+restart OR `code_landed_NOT_deployed` note in CURRENT_STATE.md). `scripts/deploy-check.sh` is a non-blocking diagnostic for unpushed-commits + service-vs-commit-time skew.
 - **`cycle.completed` telemetry (2026-04-24T15:37Z, commit 66a3db7)**: `runner.py` emits `cycle.completed` on the happy path with `decisions_by_kind`, `signals_found`, `graph_nodes`, `graph_edges`, `total_evidence_store_size`. First post-deploy emission confirmed all-continue frozen-loop state is now directly visible in telemetry.
 
 ## Known broken or degraded
 
-- ~~**Evidence accumulation frozen at 133 (confirmed, 4 cycles)**~~ — **Fixed in code 2026-04-25T12:50Z**: `runner.py` now treats prior `(symbol, timeframe)` evidence as a 1-day freshness cache instead of a permanent block. Evidence IDs use `uuid4` (NOT deterministic); the flatline was caused by skipped `run_experiment` calls, not ID collisions. Next live cycle should show new evidence if eligible evidence is older than 1 day.
+- ~~**Evidence accumulation frozen at 133**~~ — **Resolved 2026-04-25T15:58Z**: bf6fc4e pushed and service restarted. Post-restart cycle.completed shows `{kill: 5}` with `total_evidence_store_size: 143`. The freshness fix is live and producing correct falsifications.
 - ~~**No `cycle.completed` event**~~ — **Fixed 2026-04-24T15:37Z (commit 66a3db7)**: `runner.py` now emits `cycle.completed` on the happy path with `decisions_by_kind` payload. First post-deploy emission confirmed `{"continue": 5}` across 5 hypotheses with `total_evidence_store_size=133` — the all-continue frozen-loop state is now directly visible in telemetry. (`cycle.failed` already existed at line 975.)
 - **`/review` EROFS** still blocks; workaround via `adversarial-review.sh` in use.
 
@@ -141,8 +144,8 @@ Session c5472d70 (Opus 4.7) resolved all 4 pending handoffs and closed both URGE
 - **Default exchange is Bitstamp (2026-04-19)**: Kraken caps OHLCV at ~720 bars regardless of `since` — below the 833-bar walk-forward minimum. Bitstamp provides 99K+ 1h bars via pagination.
 
 ## What the next agent must read first
-1. **Verify the retest-window patch live**: after the next `atlas-runner.service` cycle, check `cycle.completed.total_evidence_store_size` and `ls -1 .atlas/evidence/ | wc -l`. The code fix is landed locally; service deployment/restart evidence still needs capture.
-2. **Add S3-P2 all-continue escalation**: after N (=3) consecutive `cycle.completed` events all showing `decisions_by_kind == {"continue": n}`, emit an `escalated` event and write a handoff to `runtime/.handoff/URGENT-atlas-frozen-loop-<ts>.md`. The loop is now 4 cycles in without this self-reporting. See P3.
+1. **Deploy the retest-window patch**: commit `bf6fc4e` is NOT pushed and the service is NOT restarted. Run: `git push origin main && sudo systemctl restart atlas-runner.service`. Then verify the next cycle shows new `run_experiment` calls in the journal (not just "skipping already tested"). All 133 evidence records are from 2026-04-19 — the patch will immediately unblock retesting once live.
+2. **Add S3-P2 all-continue escalation**: after N (=3) consecutive `cycle.completed` events all showing `decisions_by_kind == {"continue": n}`, emit an `escalated` event and write a handoff to `runtime/.handoff/URGENT-atlas-frozen-loop-<ts>.md`. The loop is now 6+ cycles in without this self-reporting. See P3.
 3. Run `.venv/bin/python -m pytest` to confirm **107/107** baseline.
 4. Address the 2026-04-23 merge-destructive finding: `scripts/migrate_claim_hash.py` silently collapses non-claim fields on hypotheses that share a canonical hash. Add an explicit `--allow-merge` gate and a merge-group test fixture. See `supervisor/.reviews/atlas-migration-reorder-2026-04-23T17-13Z.md`.
 5. If dual-write or canon-intake is next: rewire adapter callers to pass real `sources=` instead of default `[]`, and design a transaction for the `.atlas ↔ .canon` dual-write boundary.
