@@ -1,6 +1,7 @@
 """Tests for the promotion gate logic in AutonomousRunner.evaluate_and_decide."""
 
 import pytest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from atlas.models.evidence import Evidence, EvidenceClass, EvidenceDirection, EvidenceQuality
@@ -39,7 +40,8 @@ def _make_cycle(runner: AutonomousRunner, h: Hypothesis) -> ResearchCycle:
 
 def _make_evidence(runner: AutonomousRunner, h_id: str, exp_id: str,
                    quality: EvidenceQuality, direction: EvidenceDirection,
-                   ev_class: EvidenceClass = EvidenceClass.OUT_OF_SAMPLE_TEST) -> Evidence:
+                   ev_class: EvidenceClass = EvidenceClass.OUT_OF_SAMPLE_TEST,
+                   created_at: datetime | None = None) -> Evidence:
     ev = Evidence(
         experiment_id=exp_id,
         hypothesis_id=h_id,
@@ -47,9 +49,25 @@ def _make_evidence(runner: AutonomousRunner, h_id: str, exp_id: str,
         quality=quality,
         direction=direction,
         summary="test",
+        **({"created_at": created_at} if created_at else {}),
     )
     runner._save_obj("evidence", ev.id, ev.model_dump())
     return ev
+
+
+def _make_experiment(runner: AutonomousRunner, h_id: str, exp_id: str,
+                     symbol: str = "BTC/USDT", timeframe: str = "1h") -> Experiment:
+    exp = Experiment(
+        id=exp_id,
+        hypothesis_id=h_id,
+        description="test",
+        method="backtest",
+        parameters={"symbol": symbol, "timeframe": timeframe},
+        success_criteria="support",
+        failure_criteria="fail",
+    )
+    runner._save_obj("experiments", exp.id, exp.model_dump())
+    return exp
 
 
 def test_promote_with_two_strong_oos_distinct_experiments(runner: AutonomousRunner) -> None:
@@ -116,3 +134,35 @@ def test_needs_oos_for_promotion(runner: AutonomousRunner) -> None:
                    ev_class=EvidenceClass.BACKTEST_RESULT)
     decision = runner.evaluate_and_decide(h, c)
     assert decision == "continue"  # no OOS evidence
+
+
+def test_dataset_evidence_expires_for_retesting(runner: AutonomousRunner) -> None:
+    h = _make_hypothesis(runner)
+    now = datetime(2026, 4, 25, tzinfo=timezone.utc)
+    _make_experiment(runner, h.id, "old-exp")
+    old = _make_evidence(
+        runner,
+        h.id,
+        "old-exp",
+        EvidenceQuality.WEAK,
+        EvidenceDirection.INCONCLUSIVE,
+        created_at=now - timedelta(days=2),
+    )
+
+    assert runner._fresh_tested_datasets([old], now=now) == set()
+
+
+def test_recent_dataset_evidence_blocks_duplicate_retest(runner: AutonomousRunner) -> None:
+    h = _make_hypothesis(runner)
+    now = datetime(2026, 4, 25, tzinfo=timezone.utc)
+    _make_experiment(runner, h.id, "fresh-exp", symbol="ETH/USDT")
+    fresh = _make_evidence(
+        runner,
+        h.id,
+        "fresh-exp",
+        EvidenceQuality.WEAK,
+        EvidenceDirection.INCONCLUSIVE,
+        created_at=now - timedelta(hours=12),
+    )
+
+    assert runner._fresh_tested_datasets([fresh], now=now) == {("ETH/USDT", "1h")}

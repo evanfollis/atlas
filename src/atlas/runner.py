@@ -6,7 +6,7 @@ Runs continuously: scan → generate → test → evaluate → decide → update
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -49,6 +49,11 @@ DEFAULT_UNIVERSE = [
 # of signal strength. Symbols below the floor are skipped and logged via
 # methodology so the skip is visible in telemetry instead of silent.
 MIN_BARS_FOR_RESEARCH = 833
+
+# Existing dataset evidence is only a cache while it is fresh. After this
+# window the same symbol/timeframe should be retested against newly available
+# market data instead of freezing the hypothesis forever.
+DATASET_RETEST_AFTER = timedelta(days=1)
 
 
 
@@ -115,6 +120,36 @@ class AutonomousRunner:
             if cycle.hypothesis_id == hypothesis_id and cycle.status == CycleStatus.ACTIVE:
                 return cycle
         return None
+
+    def _fresh_tested_datasets(
+        self,
+        existing_evidence: list[Evidence],
+        now: datetime | None = None,
+    ) -> set[tuple[str, str]]:
+        """Return datasets with recent evidence for the hypothesis."""
+        now = now or datetime.now(timezone.utc)
+        fresh: set[tuple[str, str]] = set()
+        newest_by_dataset: dict[tuple[str, str], datetime] = {}
+
+        for evidence in existing_evidence:
+            exp_data = self._load_obj("experiments", evidence.experiment_id)
+            if not exp_data:
+                continue
+            params = exp_data.get("parameters", {})
+            key = (params.get("symbol", ""), params.get("timeframe", ""))
+            if not all(key):
+                continue
+            created_at = evidence.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            if key not in newest_by_dataset or created_at > newest_by_dataset[key]:
+                newest_by_dataset[key] = created_at
+
+        for key, created_at in newest_by_dataset.items():
+            if now - created_at < DATASET_RETEST_AFTER:
+                fresh.add(key)
+
+        return fresh
 
     def scan_signals(self, oos_cutoff: float = 0.7) -> list[tuple[str, str, list, pd.DataFrame]]:
         """Phase 1: Scan in-sample data only for signals.
@@ -871,12 +906,7 @@ class AutonomousRunner:
             # plus additional datasets for cross-validation (distinct experiments).
             existing_evidence = [Evidence.model_validate(d) for d in self._list_objs("evidence")
                                  if d.get("hypothesis_id") == h.id]
-            tested_datasets = set()
-            for e in existing_evidence:
-                exp_data = self._load_obj("experiments", e.experiment_id)
-                if exp_data:
-                    p = exp_data.get("parameters", {})
-                    tested_datasets.add((p.get("symbol", ""), p.get("timeframe", "")))
+            fresh_tested_datasets = self._fresh_tested_datasets(existing_evidence)
 
             # Build candidate datasets: primary first, then cross-validation pairs
             datasets = []
@@ -893,7 +923,7 @@ class AutonomousRunner:
 
             # Add cross-validation datasets (same strategy, different data)
             for sym, tf in DEFAULT_UNIVERSE:
-                if (sym, tf) not in tested_datasets and (not datasets or (sym, tf) != (datasets[0][0], datasets[0][1])):
+                if (sym, tf) not in fresh_tested_datasets and (not datasets or (sym, tf) != (datasets[0][0], datasets[0][1])):
                     try:
                         xdf = self.market.fetch_ohlcv(symbol=sym, timeframe=tf, limit=100000)
                         if len(xdf) >= 200:
@@ -912,7 +942,7 @@ class AutonomousRunner:
             n_folds = 5
             min_bars = n_folds * 50 / 0.3  # each OOS fold needs ≥50 bars
             for symbol, timeframe, df in datasets:
-                if (symbol, timeframe) in tested_datasets:
+                if (symbol, timeframe) in fresh_tested_datasets:
                     continue
                 if len(df) < min_bars:
                     log.info("Skipping %s %s: %d bars too short for %d-fold walk-forward (need %d)",
