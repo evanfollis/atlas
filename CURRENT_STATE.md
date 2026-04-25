@@ -20,7 +20,7 @@ updated: 2026-04-25
 - **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`, `.canon/`.
 
 ## What just shipped
-- **Strategy-readiness CLI + S3-P2 escalation gate (2026-04-25T19:30Z) — UNCOMMITTED**:
+- **Strategy-readiness CLI + S3-P2 escalation gate (2026-04-25T19:30Z) — PUSHED (commit 90bd5fc) + DEPLOYED (service restart 2026-04-25T19:27:30Z)**:
   - `atlas strategy readiness` — one-screen verdict: classification (research-only / strategy-candidate / paper-trading-ready / live-capital-ready), promoted primitive count, promotable candidate count (mechanical: passes promotion gate now), evidence distribution (quality/direction), all-continue streak from telemetry. Backed by store + telemetry, not hand-written state.
   - `runner.py::_maybe_escalate_frozen_loop` — after `FROZEN_LOOP_ESCALATION_AFTER = 3` consecutive cycle.completed events whose `decisions_by_kind == {"continue": N}` (vacuous cycles skipped, not counted), emits `cycle.escalated` and writes one URGENT handoff to `runtime/.handoff/URGENT-atlas-frozen-loop-<iso>.md`. Idempotent (won't re-emit until streak breaks); URGENT handoff dedup via glob.
   - `evaluate_promotion_gate(evidence)` extracted as a module-level pure predicate so the CLI and the runner share one source of truth — no parallel reimplementation.
