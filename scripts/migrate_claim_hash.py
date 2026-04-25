@@ -14,7 +14,15 @@ fully re-linked. A crash mid-migration leaves both old and new hypothesis
 files on disk, all experiment/evidence references either intact (if the
 re-link phase did not start) or pointing at the new IDs (if it completed).
 A re-run picks up where the previous run left off and finishes cleanly.
+
+Merge handling is opt-in via --allow-merge. When two hypotheses share a
+canonical hash, only their `claim` text is preserved (in `claim_variants`);
+all other fields on the discarded record (rationale, falsification_criteria,
+tags, status, etc.) are dropped. Without --allow-merge the script refuses
+to run if any merge groups are detected and prints an audit of which fields
+diverge between the records that would be collapsed.
 """
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -24,6 +32,39 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from atlas.utils import claim_hash  # noqa: E402
 
 
+# Audit constant: fields where divergence between merged records would be
+# silently lost. Listed for explicit visibility.
+HYPOTHESIS_FIELDS_AT_RISK = (
+    "rationale",
+    "falsification_criteria",
+    "significance_threshold",
+    "domain",
+    "tags",
+    "status",
+    "parent_primitive_id",
+)
+
+
+def _audit_merge_divergence(entries: list[dict]) -> dict[str, list]:
+    """For a merge group, report which at-risk fields differ across records.
+
+    Returns {field_name: [(old_id, value), ...]} for any field whose value
+    is not identical across all merge candidates. The caller prints the
+    result so the operator sees exactly what would be silently dropped
+    before opting into --allow-merge.
+    """
+    diverging: dict[str, list] = {}
+    if len(entries) < 2:
+        return diverging
+    loaded = [(e["old_id"], json.loads(e["file"].read_text())) for e in entries]
+    for field in HYPOTHESIS_FIELDS_AT_RISK:
+        values = [(oid, data.get(field)) for oid, data in loaded]
+        unique = {repr(v) for _, v in values}
+        if len(unique) > 1:
+            diverging[field] = values
+    return diverging
+
+
 def run_migration(
     hyp_dir: Path,
     exp_dir: Path,
@@ -31,6 +72,7 @@ def run_migration(
     meta_path: Path,
     *,
     verbose: bool = True,
+    allow_merge: bool = False,
 ) -> dict[str, int]:
     """Migrate hypothesis IDs to canonical hash form, two-phase-commit safe.
 
@@ -88,6 +130,36 @@ def run_migration(
             p(f"  → {new_id}:")
             for e in entries:
                 p(f"    {e['old_id']} | {e['claim'][:80]}")
+
+        # --allow-merge gate: the merge consolidation drops every non-claim
+        # field from the discarded records. Refuse to run without explicit
+        # opt-in, and print an audit of which fields would diverge so the
+        # operator sees exactly what would be lost before re-invoking with
+        # --allow-merge.
+        if not allow_merge:
+            print("\nERROR: merge groups detected but --allow-merge not set.",
+                  file=sys.stderr)
+            print("Merging silently drops all non-claim fields from discarded "
+                  "records (rationale, falsification_criteria, status, etc.).",
+                  file=sys.stderr)
+            print("Audit of fields that would diverge:", file=sys.stderr)
+            for new_id, entries in merge_groups.items():
+                divergence = _audit_merge_divergence(entries)
+                if not divergence:
+                    print(f"  {new_id}: all at-risk fields identical "
+                          "(merge would still consolidate to the first "
+                          "sorted record).", file=sys.stderr)
+                    continue
+                print(f"  {new_id}: {len(divergence)} field(s) diverge:",
+                      file=sys.stderr)
+                for field, values in divergence.items():
+                    print(f"    {field}:", file=sys.stderr)
+                    for old_id, value in values:
+                        print(f"      {old_id}: {value!r}", file=sys.stderr)
+            print("\nRe-run with --allow-merge to opt in to the destructive "
+                  "consolidation, or merge by hand first.", file=sys.stderr)
+            raise SystemExit(2)
+
         for new_id, entries in merge_groups.items():
             primary = entries[0]
             primary_data = json.loads(primary["file"].read_text())
@@ -203,11 +275,22 @@ def run_migration(
 
 
 def _main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--allow-merge",
+        action="store_true",
+        help="Opt in to destructive merge consolidation when two hypotheses "
+             "share a canonical hash. Without this flag the script refuses "
+             "to run if any merge groups are detected.",
+    )
+    args = parser.parse_args()
+
     counts = run_migration(
         hyp_dir=Path(".atlas/hypotheses"),
         exp_dir=Path(".atlas/experiments"),
         evi_dir=Path(".atlas/evidence"),
         meta_path=Path(".atlas/schema_version.json"),
+        allow_merge=args.allow_merge,
     )
     if counts.get("orphan_experiments") or counts.get("orphan_evidence"):
         return 1

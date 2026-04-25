@@ -136,3 +136,78 @@ def test_idempotent_when_already_canonical(tmp_path):
     counts = mod.run_migration(hyp, exp, evi, meta, verbose=False)
     assert counts["hypotheses_migrated"] == 0
     assert {p.name: p.read_text() for p in hyp.glob("*.json")} == snapshot
+
+
+def _seed_merge_collision(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
+    """Seed two hypotheses whose claims canonicalize to the same id but
+    diverge on every other field. Without --allow-merge the migration must
+    refuse to consolidate them."""
+    hyp = tmp_path / ".atlas" / "hypotheses"
+    exp = tmp_path / ".atlas" / "experiments"
+    evi = tmp_path / ".atlas" / "evidence"
+    for d in (hyp, exp, evi):
+        d.mkdir(parents=True)
+
+    common_canonical = "btc reverts post-funding"
+    (hyp / "aaaa000000000001.json").write_text(json.dumps({
+        "id": "aaaa000000000001",
+        "claim": "BTC reverts post-funding.",
+        "rationale": "rationale variant A",
+        "falsification_criteria": "criteria A",
+        "significance_threshold": 0.05,
+        "status": "falsified",
+        "tags": ["a"],
+    }))
+    (hyp / "bbbb000000000002.json").write_text(json.dumps({
+        "id": "bbbb000000000002",
+        "claim": "BTC reverts post-funding!",  # canonicalizes the same
+        "rationale": "rationale variant B (would be lost)",
+        "falsification_criteria": "criteria B (would be lost)",
+        "significance_threshold": 0.01,           # diverges
+        "status": "supported",                    # diverges
+        "tags": ["b"],
+    }))
+    meta = tmp_path / ".atlas" / "schema_version.json"
+    return hyp, exp, evi, meta
+
+
+def test_merge_groups_refuse_without_allow_merge(tmp_path, capsys):
+    """A merge group must abort the migration unless --allow-merge is set."""
+    mod = _load_script()
+    hyp, exp, evi, meta = _seed_merge_collision(tmp_path)
+
+    try:
+        mod.run_migration(hyp, exp, evi, meta, verbose=False)
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected SystemExit(2) when merges are present without --allow-merge")
+
+    # Both hypothesis files are still on disk — nothing was consolidated.
+    remaining = sorted(p.stem for p in hyp.glob("*.json"))
+    assert remaining == ["aaaa000000000001", "bbbb000000000002"]
+
+    err = capsys.readouterr().err
+    assert "merge groups detected" in err
+    assert "--allow-merge" in err
+    assert "rationale" in err and "status" in err  # field-divergence audit
+
+
+def test_merge_groups_proceed_with_allow_merge(tmp_path):
+    """With --allow-merge the consolidation runs and the second record is
+    dropped (claim_variants captures only the claim text, by design)."""
+    mod = _load_script()
+    hyp, exp, evi, meta = _seed_merge_collision(tmp_path)
+    counts = mod.run_migration(
+        hyp, exp, evi, meta, verbose=False, allow_merge=True,
+    )
+    assert counts["hypotheses_migrated"] == 2
+
+    final = sorted(p.stem for p in hyp.glob("*.json"))
+    assert len(final) == 1
+    survivor = json.loads((hyp / f"{final[0]}.json").read_text())
+    # claim_variants captures the second claim text; non-claim fields
+    # default to the first sorted record's values (the documented loss).
+    assert "claim_variants" in survivor
+    assert survivor["rationale"] == "rationale variant A"
+    assert survivor["significance_threshold"] == 0.05
