@@ -7,7 +7,7 @@ updated: 2026-04-25
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-25T19:30Z — strategy readiness + S3-P2 escalation gate landed; classification = research-only (live verdict via `atlas strategy readiness`); tests 122/122
+**Last updated**: 2026-04-25T21:40Z — S3-P2 gate fired live (6-cycle all-continue streak, evidence frozen at 153). Diagnosis: research-only with 0 strong supports; cache vs threshold misalignment is principal-class tuning. See `general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`.
 
 ---
 
@@ -31,6 +31,8 @@ updated: 2026-04-25
 
 ## Known broken or degraded
 
+- **Cache-vs-gate misalignment** (open, principal-class): `DATASET_RETEST_AFTER = 1 day` and `FROZEN_LOOP_ESCALATION_AFTER = 3 cycles` interact such that the gate fires roughly once per 24h between productive cycles. The gate firing is correct epistemic signal (the loop genuinely cannot promote during the cache window), but produces a recurring URGENT. Tuning options A–D documented in `general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`. No code change without principal direction.
+- **Telemetry pollution (cosmetic)**: 4 `cycle.escalated` events in `events.jsonl` from initial test runs before `_emit_telemetry` was refactored to honor `self.TELEMETRY_PATH`. Bogus markers (`streak_start_ts=1000`, `evidence=0`); harmless to gate logic. Not scrubbing the shared file.
 - ~~**Evidence accumulation frozen at 133**~~ — **Resolved 2026-04-25T15:58Z**: bf6fc4e pushed and service restarted. Post-restart cycle.completed shows `{kill: 5}` with `total_evidence_store_size: 143`. The freshness fix is live and producing correct falsifications.
 - ~~**No `cycle.completed` event**~~ — **Fixed 2026-04-24T15:37Z (commit 66a3db7)**: `runner.py` now emits `cycle.completed` on the happy path with `decisions_by_kind` payload. First post-deploy emission confirmed `{"continue": 5}` across 5 hypotheses with `total_evidence_store_size=133` — the all-continue frozen-loop state is now directly visible in telemetry. (`cycle.failed` already existed at line 975.)
 - **`/review` EROFS** still blocks; workaround via `adversarial-review.sh` in use.
