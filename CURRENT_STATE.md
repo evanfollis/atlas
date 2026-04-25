@@ -7,18 +7,23 @@ updated: 2026-04-25
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-25T16:00Z — frozen-loop fix DEPLOYED + verified (cycle.completed shows {kill:5}, evidence 133→143); --allow-merge gate landed; deploy-push gate landed
+**Last updated**: 2026-04-25T19:30Z — strategy readiness + S3-P2 escalation gate landed; classification = research-only (live verdict via `atlas strategy readiness`); tests 122/122
 
 ---
 
 ## Deployed / running state
-- **Mode**: autonomous research loop (signal intake → hypothesis → experiment → evidence → graph update). **RUNNING** as of 2026-04-24T12:27Z under `systemctl status atlas-runner.service`. Frozen-loop fix bf6fc4e deployed at 2026-04-25T15:45:12Z. First post-restart cycle.completed shows `{decisions_by_kind: {kill: 5}, total_evidence_store_size: 143}` — all 5 hypotheses correctly falsified with fresh evidence (was previously `{continue: 5}` frozen at 133). The freshness cache (`DATASET_RETEST_AFTER = 1 day`) is doing exactly what it should.
+- **Mode**: autonomous research loop (signal intake → hypothesis → experiment → evidence → graph update). **RUNNING** under `systemctl status atlas-runner.service` since 2026-04-24T12:27Z (restart 2026-04-25T15:45:12Z deployed bf6fc4e freshness fix).
+- **Lifecycle classification**: **research-only** (snapshot 2026-04-25T19:30Z). Live verdict: `.venv/bin/atlas strategy readiness`. Promoted primitives = 0 → live-signal generation is blocked by absence of primitives. Promotable candidates = 0. Next milestone per `atlas-strategy-readiness-2026-04-25.md` is paper-strategy materialization from promoted primitives (no execution layer until then).
 - **Domain**: crypto markets (Bitstamp for deep OHLCV history — Binance/Bybit blocked on Hetzner US server).
 - **Entry**: production = `systemctl status/start/stop atlas-runner.service`. Debug = `.venv/bin/atlas run --once` from project root.
 - **Service unit**: `/etc/systemd/system/atlas-runner.service`; mirrored copy in repo at `deploy/atlas-runner.service` for re-installation. Re-install with `sudo install -m644 deploy/atlas-runner.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now atlas-runner.service`.
 - **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`, `.canon/`.
 
 ## What just shipped
+- **Strategy-readiness CLI + S3-P2 escalation gate (2026-04-25T19:30Z) — UNCOMMITTED**:
+  - `atlas strategy readiness` — one-screen verdict: classification (research-only / strategy-candidate / paper-trading-ready / live-capital-ready), promoted primitive count, promotable candidate count (mechanical: passes promotion gate now), evidence distribution (quality/direction), all-continue streak from telemetry. Backed by store + telemetry, not hand-written state.
+  - `runner.py::_maybe_escalate_frozen_loop` — after `FROZEN_LOOP_ESCALATION_AFTER = 3` consecutive cycle.completed events whose `decisions_by_kind == {"continue": N}` (vacuous cycles skipped, not counted), emits `cycle.escalated` and writes one URGENT handoff to `runtime/.handoff/URGENT-atlas-frozen-loop-<iso>.md`. Idempotent (won't re-emit until streak breaks); URGENT handoff dedup via glob.
+  - `evaluate_promotion_gate(evidence)` extracted as a module-level pure predicate so the CLI and the runner share one source of truth — no parallel reimplementation.
 - **Frozen-loop fix deployed + verified (2026-04-25T15:58Z)**: bf6fc4e pushed and `atlas-runner.service` restarted at 15:45:12Z. First post-restart cycle.completed: `{decisions_by_kind: {kill: 5}, total_evidence_store_size: 143, signals_found: 22}`. Five hypotheses correctly falsified with fresh evidence (was 5 × continue, evidence frozen at 133).
 - **`--allow-merge` gate on `migrate_claim_hash.py` (commit 4977ad9)**: per `URGENT-atlas-migration-merge-collapse`. Merge groups now abort the migration with `SystemExit(2)` and a per-field divergence audit. Audit of current `.atlas/hypotheses/`: 59 records, 0 with `claim_variants` populated → no prior runs ever silently merged anything. Tests: 109 → 111.
 - **Deploy-push gate (commit 0fedaf2)**: `deploy/README.md` documents the rule (push+restart OR `code_landed_NOT_deployed` note in CURRENT_STATE.md). `scripts/deploy-check.sh` is a non-blocking diagnostic for unpushed-commits + service-vs-commit-time skew.

@@ -55,6 +55,53 @@ MIN_BARS_FOR_RESEARCH = 833
 # market data instead of freezing the hypothesis forever.
 DATASET_RETEST_AFTER = timedelta(days=1)
 
+# Frozen-loop escalation: after this many consecutive cycle.completed events
+# whose decisions are all "continue", the runner emits a cycle.escalated event
+# and writes an URGENT handoff. Matches the workspace S3-P2 rule "self-monitoring
+# systems must self-report stuck states; threshold is 3 consecutive same-reason
+# skips" (CLAUDE.md §Architecture Governance).
+FROZEN_LOOP_ESCALATION_AFTER = 3
+
+
+def evaluate_promotion_gate(evidence: list[Evidence]) -> dict:
+    """Pure predicate: return promotion-gate metrics for one hypothesis.
+
+    Single source of truth shared by `evaluate_and_decide` (which acts on the
+    verdict) and `atlas strategy readiness` (which counts how many hypotheses
+    would pass). Adding a parallel implementation here would silently drift
+    from the runner.
+
+    Gate (per CLAUDE.md §Promotion Gate and atlas review #2):
+      - ≥2 strong supporting evidence records
+      - from ≥2 DISTINCT experiments
+      - ≥1 of those strong supports is OOS or LIVE
+      - 0 strong contradictory evidence records
+    """
+    strong_support = [e for e in evidence
+                      if e.quality == EvidenceQuality.STRONG
+                      and e.direction == EvidenceDirection.SUPPORTS]
+    strong_contradict = [e for e in evidence
+                         if e.quality == EvidenceQuality.STRONG
+                         and e.direction == EvidenceDirection.CONTRADICTS]
+    oos_support = [e for e in strong_support
+                   if e.evidence_class in (EvidenceClass.OUT_OF_SAMPLE_TEST,
+                                           EvidenceClass.LIVE_OBSERVATION)]
+    distinct_experiments = len({e.experiment_id for e in strong_support})
+
+    promotable = (
+        not strong_contradict
+        and distinct_experiments >= 2
+        and len(oos_support) >= 1
+    )
+
+    return {
+        "strong_support": strong_support,
+        "strong_contradict": strong_contradict,
+        "oos_support": oos_support,
+        "distinct_experiments": distinct_experiments,
+        "promotable": promotable,
+    }
+
 
 
 class AutonomousRunner:
@@ -97,7 +144,7 @@ class AutonomousRunner:
         }
         if details:
             event["details"] = details
-        telemetry_path = Path("/opt/workspace/runtime/.telemetry/events.jsonl")
+        telemetry_path = self.TELEMETRY_PATH
         try:
             telemetry_path.parent.mkdir(parents=True, exist_ok=True)
             with open(telemetry_path, "a") as f:
@@ -762,17 +809,11 @@ class AutonomousRunner:
         if not evidence:
             return "continue"
 
-        strong_support = [e for e in evidence
-                          if e.quality == EvidenceQuality.STRONG
-                          and e.direction == EvidenceDirection.SUPPORTS]
-        strong_contradict = [e for e in evidence
-                             if e.quality == EvidenceQuality.STRONG
-                             and e.direction == EvidenceDirection.CONTRADICTS]
-        oos_support = [e for e in strong_support
-                       if e.evidence_class in (EvidenceClass.OUT_OF_SAMPLE_TEST, EvidenceClass.LIVE_OBSERVATION)]
-
-        # Check distinct experiments for strong support
-        distinct_experiments = len({e.experiment_id for e in strong_support})
+        gate = evaluate_promotion_gate(evidence)
+        strong_support = gate["strong_support"]
+        strong_contradict = gate["strong_contradict"]
+        oos_support = gate["oos_support"]
+        distinct_experiments = gate["distinct_experiments"]
 
         # Kill if strong contradictory evidence
         if len(strong_contradict) >= 2:
@@ -1003,7 +1044,145 @@ class AutonomousRunner:
                 "decisions_by_kind": decisions_by_kind,
             },
         )
+
+        # S3-P2 frozen-loop escalation: if the last N completed cycles were
+        # all-continue (no kills, promotions, or pivots), the loop is producing
+        # no epistemic state and the silent-monitor failure mode applies.
+        try:
+            self._maybe_escalate_frozen_loop()
+        except Exception as exc:  # never let escalation crash a cycle
+            log.warning("Frozen-loop escalation check failed: %s", exc)
+
         return cycle_report
+
+    # --------------------------------------------------------------------
+    # S3-P2 frozen-loop escalation
+    # --------------------------------------------------------------------
+
+    TELEMETRY_PATH = Path("/opt/workspace/runtime/.telemetry/events.jsonl")
+    HANDOFF_DIR = Path("/opt/workspace/runtime/.handoff")
+
+    def _read_recent_runner_events(self, max_events: int = 200) -> list[dict]:
+        """Return the most recent atlas.runner events from the workspace
+        telemetry stream. Reads the file once; cheap enough for a per-cycle
+        check at our cadence."""
+        path = self.TELEMETRY_PATH
+        if not path.exists():
+            return []
+        events: list[dict] = []
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    e = json.loads(line)
+                except Exception:
+                    continue
+                if e.get("source") == "atlas.runner":
+                    events.append(e)
+        return events[-max_events:]
+
+    def _maybe_escalate_frozen_loop(self) -> None:
+        """Emit a `cycle.escalated` event and write an URGENT handoff if the
+        last `FROZEN_LOOP_ESCALATION_AFTER` cycle.completed events were all
+        all-continue (and we have not already escalated this streak).
+
+        Vacuous cycles (no hypotheses evaluated) are skipped — they neither
+        contribute to nor break the streak. Idempotency: if a cycle.escalated
+        event newer than the streak's first cycle already exists, skip.
+        """
+        events = self._read_recent_runner_events()
+        if not events:
+            return
+
+        completed = [e for e in events if e.get("eventType") == "cycle.completed"]
+        if len(completed) < FROZEN_LOOP_ESCALATION_AFTER:
+            return
+
+        # Walk back from most recent, counting non-vacuous all-continue cycles.
+        streak: list[dict] = []
+        for e in reversed(completed):
+            details = e.get("details", {}) or {}
+            n = details.get("hypotheses_evaluated", 0)
+            if n <= 0:
+                continue  # vacuous — skip
+            kinds = details.get("decisions_by_kind", {}) or {}
+            if set(kinds.keys()) == {"continue"}:
+                streak.append(e)
+                if len(streak) >= FROZEN_LOOP_ESCALATION_AFTER:
+                    break
+            else:
+                return  # streak broken
+
+        if len(streak) < FROZEN_LOOP_ESCALATION_AFTER:
+            return
+
+        streak_start_ts = streak[-1].get("timestamp", 0)
+
+        # Idempotent: skip if a cycle.escalated event already covers this streak.
+        for e in events:
+            if (e.get("eventType") == "cycle.escalated"
+                    and e.get("timestamp", 0) >= streak_start_ts):
+                return
+
+        self._emit_telemetry(
+            "cycle.escalated",
+            level="warning",
+            details={
+                "reason": "frozen_loop_all_continue",
+                "consecutive_cycles": len(streak),
+                "streak_start_ts": streak_start_ts,
+                "decisions_by_kind": (
+                    streak[0].get("details", {}).get("decisions_by_kind", {})
+                ),
+                "total_evidence_store_size": (
+                    streak[0].get("details", {}).get("total_evidence_store_size", 0)
+                ),
+            },
+        )
+        self._write_frozen_loop_handoff(streak)
+
+    def _write_frozen_loop_handoff(self, streak: list[dict]) -> None:
+        """Drop one URGENT handoff to general/atlas describing the streak.
+        Dedup by glob — if any URGENT-atlas-frozen-loop-*.md exists, skip."""
+        try:
+            self.HANDOFF_DIR.mkdir(parents=True, exist_ok=True)
+            existing = list(self.HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
+            if existing:
+                return
+            now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%MZ")
+            path = self.HANDOFF_DIR / f"URGENT-atlas-frozen-loop-{now_iso}.md"
+            evidence_size = (streak[0].get("details", {})
+                             .get("total_evidence_store_size", 0))
+            body = (
+                "---\n"
+                f"priority: critical\n"
+                f"created: {datetime.now(timezone.utc).isoformat()}\n"
+                "from: atlas.runner (self-emitted via S3-P2 escalation gate)\n"
+                "to: atlas / general\n"
+                "---\n\n"
+                "# atlas — frozen loop (auto-escalated)\n\n"
+                f"The autonomous loop has produced {len(streak)} consecutive\n"
+                "all-continue cycles with no kill/promote/pivot decisions.\n"
+                f"Evidence store size at streak start: {evidence_size}.\n\n"
+                "## Likely causes\n\n"
+                "- Dataset retest cache is too aggressive (DATASET_RETEST_AFTER) —\n"
+                "  hypothesis is being re-evaluated against the same evidence.\n"
+                "- All available data has been exhausted under the current signal\n"
+                "  detectors; new detectors or new data sources needed.\n"
+                "- A bug is silently dropping experiment runs.\n\n"
+                "## Diagnostic\n\n"
+                "  grep '\"eventType\": \"cycle.completed\"' \\\n"
+                "    /opt/workspace/runtime/.telemetry/events.jsonl | tail -10\n"
+                "  .venv/bin/atlas strategy readiness\n\n"
+                "Delete this file once the root cause is addressed; the gate is\n"
+                "idempotent and will re-fire only on a new streak.\n"
+            )
+            path.write_text(body)
+            log.warning("Wrote frozen-loop URGENT handoff to %s", path)
+        except Exception as exc:
+            log.warning("Failed to write frozen-loop handoff: %s", exc)
 
     def run_continuous(self, interval_seconds: int = 3600) -> None:
         """Run the research loop continuously."""

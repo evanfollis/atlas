@@ -535,3 +535,137 @@ def revalidations_due_cmd() -> None:
         return
     for r in rows:
         click.echo(f"{r['experiment_id']}  due={r['due_at']}  script={r['script']}")
+
+
+# --- Strategy readiness ---
+
+
+@cli.group()
+def strategy() -> None:
+    """Strategy-readiness and lifecycle introspection."""
+    pass
+
+
+@strategy.command("readiness")
+def strategy_readiness() -> None:
+    """One-screen verdict: how close is atlas to a deployable strategy?
+
+    Backed by store counts and live telemetry — re-run any time. The verdict
+    classifies atlas into one of:
+
+      research-only        — no promoted primitives; loop is exploratory
+      strategy-candidate   — ≥1 promoted primitive; no paper-strategy layer
+      paper-trading-ready  — paper-strategy materialization exists
+      live-capital-ready   — gated externally by the principal
+
+    See the `atlas-strategy-readiness-2026-04-25.md` handoff for the original
+    spec.
+    """
+    from atlas.runner import (
+        FROZEN_LOOP_ESCALATION_AFTER,
+        evaluate_promotion_gate,
+    )
+
+    state = StateStore(Path(".atlas"))
+
+    # Hypothesis status counts.
+    hyps = [Hypothesis.model_validate(d) for d in state.list_all("hypotheses")]
+    status_counts: dict[str, int] = {}
+    for h in hyps:
+        status_counts[h.status.value] = status_counts.get(h.status.value, 0) + 1
+
+    # Evidence distribution (quality x direction).
+    evidence_records = [Evidence.model_validate(d) for d in state.list_all("evidence")]
+    evidence_dist: dict[str, int] = {}
+    by_hyp: dict[str, list[Evidence]] = {}
+    for e in evidence_records:
+        key = f"{e.quality.value}/{e.direction.value}"
+        evidence_dist[key] = evidence_dist.get(key, 0) + 1
+        by_hyp.setdefault(e.hypothesis_id, []).append(e)
+
+    # Primitive count (the gating term for classification).
+    primitive_count = len(state.list_all("primitives"))
+
+    # Promotable candidates: hypotheses whose accumulated evidence currently
+    # passes the promotion gate but have not been promoted. Uses the same
+    # `evaluate_promotion_gate` predicate the runner consults — single source
+    # of truth, no parallel reimplementation.
+    promotable_candidates = []
+    for h in hyps:
+        if h.status == HypothesisStatus.PROMOTED:
+            continue
+        ev = by_hyp.get(h.id, [])
+        if not ev:
+            continue
+        if evaluate_promotion_gate(ev)["promotable"]:
+            promotable_candidates.append(h.id)
+
+    # All-continue streak from telemetry (matches the runner's gate).
+    streak = 0
+    streak_evidence_size = None
+    telemetry = Path("/opt/workspace/runtime/.telemetry/events.jsonl")
+    if telemetry.exists():
+        completed: list[dict] = []
+        with open(telemetry) as f:
+            for line in f:
+                try:
+                    e = json.loads(line)
+                except Exception:
+                    continue
+                if e.get("source") == "atlas.runner" and e.get("eventType") == "cycle.completed":
+                    completed.append(e)
+        for e in reversed(completed):
+            details = e.get("details", {}) or {}
+            if details.get("hypotheses_evaluated", 0) <= 0:
+                continue
+            kinds = details.get("decisions_by_kind", {}) or {}
+            if set(kinds.keys()) == {"continue"}:
+                streak += 1
+                streak_evidence_size = details.get("total_evidence_store_size")
+            else:
+                break
+
+    # Classification — purely a function of what is actually deployable today.
+    # paper-strategy materialization layer does not yet exist (out of scope per
+    # the handoff's "first strategy milestone" note).
+    if primitive_count == 0:
+        classification = "research-only"
+        live_blocked = True
+    elif primitive_count >= 1:
+        # Paper-strategy layer not built yet → cannot advance further.
+        classification = "strategy-candidate"
+        live_blocked = False  # primitives exist, but no strategy layer to use them
+    else:  # unreachable
+        classification = "research-only"
+        live_blocked = True
+
+    # Output.
+    click.echo("atlas — strategy readiness")
+    click.echo("=" * 50)
+    click.echo(f"Classification:           {classification}")
+    click.echo(f"Live-signal generation:   "
+               f"{'blocked (no primitives)' if live_blocked else 'possible (no strategy layer yet)'}")
+    click.echo()
+    click.echo(f"Promoted primitives:      {primitive_count}")
+    click.echo(f"Promotable candidates:    {len(promotable_candidates)}"
+               + (f"  (ids: {', '.join(promotable_candidates[:5])}"
+                  + (', ...' if len(promotable_candidates) > 5 else '')
+                  + ')' if promotable_candidates else ""))
+    click.echo()
+    click.echo("Hypothesis status counts:")
+    for k in sorted(status_counts):
+        click.echo(f"  {k:14}  {status_counts[k]}")
+    click.echo()
+    click.echo("Evidence distribution (quality/direction):")
+    for k in sorted(evidence_dist):
+        click.echo(f"  {k:30} {evidence_dist[k]}")
+    click.echo()
+    click.echo(
+        f"All-continue streak:      {streak}  "
+        f"(escalation gate fires at {FROZEN_LOOP_ESCALATION_AFTER})"
+    )
+    if streak_evidence_size is not None:
+        click.echo(f"Evidence size at streak:  {streak_evidence_size}")
+    click.echo()
+    click.echo("Next milestone: paper-strategy materialization from promoted primitives.")
+    click.echo("DO NOT build live execution. See handoff atlas-strategy-readiness-2026-04-25.")
