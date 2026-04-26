@@ -7,7 +7,7 @@ updated: 2026-04-26
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-26T02:41Z — S3-P2 gate dedup bug fixed (commit 34f4a83) + deployed. Walk-back now covers the entire streak so dedup survives streak growth past the threshold. Cache-vs-threshold tuning still open (principal).
+**Last updated**: 2026-04-26T21:35Z — S3-P2 dedup fix verified end-to-end: kill cycle at 18:14Z broke the prior streak (evidence 153→163), new 3-cycle continue streak (19:27/20:29/21:30Z) emitted exactly ONE cycle.escalated as designed. Recurring 24h URGENT cadence is the predicted signal of the open cache-vs-threshold question (still principal-class). Two-hypothesis `testing` orphan and pool-rotation findings remain open from the 14:21Z reflection.
 
 ---
 
@@ -32,11 +32,13 @@ updated: 2026-04-26
 
 ## Known broken or degraded
 
-- **Cache-vs-gate misalignment** (open, principal-class): `DATASET_RETEST_AFTER = 1 day` and `FROZEN_LOOP_ESCALATION_AFTER = 3 cycles` interact such that the gate fires roughly once per 24h between productive cycles. The gate firing is correct epistemic signal (the loop genuinely cannot promote during the cache window), but produces a recurring URGENT. Tuning options A–D documented in `general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`. No code change without principal direction.
+- **Cache-vs-gate misalignment** (open, principal-class): `DATASET_RETEST_AFTER = 1 day` and `FROZEN_LOOP_ESCALATION_AFTER = 3 cycles` interact such that the gate fires roughly once per 24h between productive cycles. The gate firing is correct epistemic signal (the loop genuinely cannot promote during the cache window), but produces a recurring URGENT. Tuning options A–D documented in `general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`. No code change without principal direction. Confirmed cadence via 04-26 18:14Z kill (evidence 153→163) → 21:30Z escalation (3-cycle new streak); the dedup-fixed gate is working precisely as documented.
 - **Telemetry pollution (cosmetic)**: 4 `cycle.escalated` events in `events.jsonl` from initial test runs before `_emit_telemetry` was refactored to honor `self.TELEMETRY_PATH`. Bogus markers (`streak_start_ts=1000`, `evidence=0`); harmless to gate logic. Not scrubbing the shared file.
 - ~~**Evidence accumulation frozen at 133**~~ — **Resolved 2026-04-25T15:58Z**: bf6fc4e pushed and service restarted. Post-restart cycle.completed shows `{kill: 5}` with `total_evidence_store_size: 143`. The freshness fix is live and producing correct falsifications.
 - ~~**No `cycle.completed` event**~~ — **Fixed 2026-04-24T15:37Z (commit 66a3db7)**: `runner.py` now emits `cycle.completed` on the happy path with `decisions_by_kind` payload. First post-deploy emission confirmed `{"continue": 5}` across 5 hypotheses with `total_evidence_store_size=133` — the all-continue frozen-loop state is now directly visible in telemetry. (`cycle.failed` already existed at line 975.)
 - **`/review` EROFS** still blocks; workaround via `adversarial-review.sh` in use.
+- **Two hypotheses stuck in `testing` indefinitely** (new, 2026-04-26): `10dc7fca3973e82a` and `4fdf3a65763ab083` are funding-rate hypotheses that cannot execute because BitMEX/Kraken Futures data is unavailable. No data-unavailability abort path exists; they will never exit `testing` without intervention. Runner evaluates only the 5 signal-scanner hypotheses each cycle; these orphans consume Bonferroni budget slots if ever selected.
+- **Hypothesis pool not rotating** (new, 2026-04-26): runner selects the same 5 hypothesis IDs every cycle (`1266c7d9`, `b5abd14e`, `dd8ac3bb`, `e48f65d9`, `047a4d40`). 12 other formulated hypotheses have never been evaluated. `generate_hypotheses()` appears to re-scan signals and reproduce the same 5 from scratch rather than rotating through the existing formulated pool.
 
 ### Autonomous loop deployed via systemd (2026-04-24T12:27Z) — UNCOMMITTED
 Per principal authorization on `atlas-autonomous-loop-deploy-2026-04-24T12-40Z` handoff. Atlas now runs as a persistent systemd service:
@@ -153,7 +155,7 @@ Session c5472d70 (Opus 4.7) resolved all 4 pending handoffs and closed both URGE
 
 ## What the next agent must read first
 1. **Principal decision on cache-vs-threshold tuning**: `DATASET_RETEST_AFTER=1day` + `FROZEN_LOOP_ESCALATION_AFTER=3` means the S3-P2 gate fires ~daily and writes/deletes URGENT handoffs. Gate is correct; the system is stuck in research-only state with 0 promotable hypotheses. Options A–D documented in `runtime/.meta/general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`. No code change is possible without a principal decision.
-2. **Audit hypothesis scheduling in runner.py**: 5 identical hypothesis IDs appear in every cycle. 19 of 64 hypotheses are in "formulated" state but never evaluated. Check whether `generate_hypotheses()` consumes existing formulated hypotheses before generating new ones from the signal scanner.
-3. Run `.venv/bin/python -m pytest` to confirm **122/122** baseline.
-4. **`/review` the S3-P2 escalation gate**: `src/atlas/runner.py:1086–1144` added 203 lines including idempotency logic; no adversarial review performed. Focus: behavior when bogus test-pollution events are present in telemetry JSONL.
+2. **Hypothesis scheduling + stuck-testing orphans**: runner always selects the same 5 hypotheses; 12 formulated hypotheses never evaluated. Two hypotheses (`10dc7fca`, `4fdf3a65`) are permanently stuck in `testing` (funding-rate data unavailable). Both issues diagnosed in reflection 2026-04-26T14:21Z. Principal question: should the runner rotate through the formulated pool, and should stuck `testing` hypotheses time out?
+3. Run `.venv/bin/python -m pytest` to confirm **124/124** baseline (updated: 122 → 124 after 34f4a83).
+4. **`/review` the S3-P2 escalation gate** (2nd carry-forward): `src/atlas/runner.py:1086–1144` (commit `90bd5fc`, 203 lines) has not been adversarially reviewed. The dedup bug found and fixed in `34f4a83` was in this code. Run `adversarial-review.sh` on this path before the next feature.
 5. **Migration merge-collapse** (4th carry-forward): `scripts/migrate_claim_hash.py` merge path discards non-claim fields from colliding hypotheses. The `--allow-merge` gate aborts on detection — but the behavior on merge-allowed runs is untested. Add a fixture with differing `rationale` fields.
