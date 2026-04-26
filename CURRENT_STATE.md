@@ -2,12 +2,12 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-04-25
+updated: 2026-04-26
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-25T21:40Z — S3-P2 gate fired live (6-cycle all-continue streak, evidence frozen at 153). Diagnosis: research-only with 0 strong supports; cache vs threshold misalignment is principal-class tuning. See `general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`.
+**Last updated**: 2026-04-26T02:41Z — S3-P2 gate dedup bug fixed (commit 34f4a83) + deployed. Walk-back now covers the entire streak so dedup survives streak growth past the threshold. Cache-vs-threshold tuning still open (principal).
 
 ---
 
@@ -20,6 +20,7 @@ updated: 2026-04-25
 - **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`, `.canon/`.
 
 ## What just shipped
+- **S3-P2 gate dedup fix (2026-04-26T02:41Z) — PUSHED (commit 34f4a83) + DEPLOYED**: walk-back now covers the entire streak instead of stopping at `FROZEN_LOOP_ESCALATION_AFTER`. Bug surfaced at 02:37Z when the gate re-fired on a streak that had not broken since 17:12Z 04-25 — `streak_start_ts` had drifted forward as the streak grew past the threshold, eventually outpacing the prior escalation's emit timestamp and defeating the dedup check. +2 regression tests cover both "streak grows past threshold" (must NOT re-emit) and "kill resets, new streak forms" (MUST re-emit). Tests 122 → 124. The duplicate `URGENT-atlas-frozen-loop-2026-04-26T02-37Z.md` was deleted; the legitimate prior escalation (`general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`) still represents the open principal-class tuning question.
 - **Strategy-readiness CLI + S3-P2 escalation gate (2026-04-25T19:30Z) — PUSHED (commit 90bd5fc) + DEPLOYED (service restart 2026-04-25T19:27:30Z)**:
   - `atlas strategy readiness` — one-screen verdict: classification (research-only / strategy-candidate / paper-trading-ready / live-capital-ready), promoted primitive count, promotable candidate count (mechanical: passes promotion gate now), evidence distribution (quality/direction), all-continue streak from telemetry. Backed by store + telemetry, not hand-written state.
   - `runner.py::_maybe_escalate_frozen_loop` — after `FROZEN_LOOP_ESCALATION_AFTER = 3` consecutive cycle.completed events whose `decisions_by_kind == {"continue": N}` (vacuous cycles skipped, not counted), emits `cycle.escalated` and writes one URGENT handoff to `runtime/.handoff/URGENT-atlas-frozen-loop-<iso>.md`. Idempotent (won't re-emit until streak breaks); URGENT handoff dedup via glob.
@@ -151,8 +152,8 @@ Session c5472d70 (Opus 4.7) resolved all 4 pending handoffs and closed both URGE
 - **Default exchange is Bitstamp (2026-04-19)**: Kraken caps OHLCV at ~720 bars regardless of `since` — below the 833-bar walk-forward minimum. Bitstamp provides 99K+ 1h bars via pagination.
 
 ## What the next agent must read first
-1. **Deploy the retest-window patch**: commit `bf6fc4e` is NOT pushed and the service is NOT restarted. Run: `git push origin main && sudo systemctl restart atlas-runner.service`. Then verify the next cycle shows new `run_experiment` calls in the journal (not just "skipping already tested"). All 133 evidence records are from 2026-04-19 — the patch will immediately unblock retesting once live.
-2. **Add S3-P2 all-continue escalation**: after N (=3) consecutive `cycle.completed` events all showing `decisions_by_kind == {"continue": n}`, emit an `escalated` event and write a handoff to `runtime/.handoff/URGENT-atlas-frozen-loop-<ts>.md`. The loop is now 6+ cycles in without this self-reporting. See P3.
-3. Run `.venv/bin/python -m pytest` to confirm **107/107** baseline.
-4. Address the 2026-04-23 merge-destructive finding: `scripts/migrate_claim_hash.py` silently collapses non-claim fields on hypotheses that share a canonical hash. Add an explicit `--allow-merge` gate and a merge-group test fixture. See `supervisor/.reviews/atlas-migration-reorder-2026-04-23T17-13Z.md`.
-5. If dual-write or canon-intake is next: rewire adapter callers to pass real `sources=` instead of default `[]`, and design a transaction for the `.atlas ↔ .canon` dual-write boundary.
+1. **Principal decision on cache-vs-threshold tuning**: `DATASET_RETEST_AFTER=1day` + `FROZEN_LOOP_ESCALATION_AFTER=3` means the S3-P2 gate fires ~daily and writes/deletes URGENT handoffs. Gate is correct; the system is stuck in research-only state with 0 promotable hypotheses. Options A–D documented in `runtime/.meta/general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`. No code change is possible without a principal decision.
+2. **Audit hypothesis scheduling in runner.py**: 5 identical hypothesis IDs appear in every cycle. 19 of 64 hypotheses are in "formulated" state but never evaluated. Check whether `generate_hypotheses()` consumes existing formulated hypotheses before generating new ones from the signal scanner.
+3. Run `.venv/bin/python -m pytest` to confirm **122/122** baseline.
+4. **`/review` the S3-P2 escalation gate**: `src/atlas/runner.py:1086–1144` added 203 lines including idempotency logic; no adversarial review performed. Focus: behavior when bogus test-pollution events are present in telemetry JSONL.
+5. **Migration merge-collapse** (4th carry-forward): `scripts/migrate_claim_hash.py` merge path discards non-claim fields from colliding hypotheses. The `--allow-merge` gate aborts on detection — but the behavior on merge-allowed runs is untested. Add a fixture with differing `rationale` fields.
