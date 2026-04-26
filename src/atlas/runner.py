@@ -1089,8 +1089,10 @@ class AutonomousRunner:
         all-continue (and we have not already escalated this streak).
 
         Vacuous cycles (no hypotheses evaluated) are skipped — they neither
-        contribute to nor break the streak. Idempotency: if a cycle.escalated
-        event newer than the streak's first cycle already exists, skip.
+        contribute to nor break the streak. Idempotency uses the TRUE streak
+        start (walks back through every consecutive all-continue cycle, not
+        just the threshold-many newest), so a streak that grows past N does
+        not re-emit just because the threshold-window's start has shifted.
         """
         events = self._read_recent_runner_events()
         if not events:
@@ -1100,7 +1102,9 @@ class AutonomousRunner:
         if len(completed) < FROZEN_LOOP_ESCALATION_AFTER:
             return
 
-        # Walk back from most recent, counting non-vacuous all-continue cycles.
+        # Walk back through EVERY consecutive non-vacuous all-continue cycle.
+        # `streak` ends up holding the entire current streak — its last entry
+        # is the true streak start.
         streak: list[dict] = []
         for e in reversed(completed):
             details = e.get("details", {}) or {}
@@ -1110,17 +1114,17 @@ class AutonomousRunner:
             kinds = details.get("decisions_by_kind", {}) or {}
             if set(kinds.keys()) == {"continue"}:
                 streak.append(e)
-                if len(streak) >= FROZEN_LOOP_ESCALATION_AFTER:
-                    break
             else:
-                return  # streak broken
+                break  # streak broken
 
         if len(streak) < FROZEN_LOOP_ESCALATION_AFTER:
             return
 
         streak_start_ts = streak[-1].get("timestamp", 0)
 
-        # Idempotent: skip if a cycle.escalated event already covers this streak.
+        # Idempotent: skip if a cycle.escalated event was emitted at any
+        # point during the current streak's lifetime (i.e., its emit timestamp
+        # is at or after the streak's true start).
         for e in events:
             if (e.get("eventType") == "cycle.escalated"
                     and e.get("timestamp", 0) >= streak_start_ts):

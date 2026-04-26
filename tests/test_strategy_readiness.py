@@ -113,9 +113,13 @@ def _write_cycle_events(runner: AutonomousRunner, decisions_list: list[dict]):
 
 
 def _read_runner_event_types(runner: AutonomousRunner) -> list[str]:
-    types: list[str] = []
+    return [e["eventType"] for e in _all_runner_events(runner)]
+
+
+def _all_runner_events(runner: AutonomousRunner) -> list[dict]:
+    out: list[dict] = []
     if not runner.TELEMETRY_PATH.exists():
-        return types
+        return out
     with open(runner.TELEMETRY_PATH) as f:
         for line in f:
             try:
@@ -123,8 +127,8 @@ def _read_runner_event_types(runner: AutonomousRunner) -> list[str]:
             except Exception:
                 continue
             if e.get("source") == "atlas.runner":
-                types.append(e["eventType"])
-    return types
+                out.append(e)
+    return out
 
 
 def test_escalation_fires_after_threshold(runner_with_telemetry):
@@ -155,6 +159,74 @@ def test_escalation_idempotent_on_same_streak(runner_with_telemetry):
     # Handoff dedup also: still exactly one URGENT file.
     handoffs = list(r.HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
     assert len(handoffs) == 1
+
+
+def test_escalation_idempotent_when_streak_grows_past_threshold(runner_with_telemetry):
+    """Regression for the 2026-04-26 02:37 false-re-emit:
+    once the all-continue streak passes the threshold, additional
+    same-streak cycles must NOT trigger a second cycle.escalated. The
+    bug was that walk-back stopped at FROZEN_LOOP_ESCALATION_AFTER, so
+    `streak_start_ts` shifted forward as cycles accumulated and
+    eventually outpaced the previous escalation's timestamp, defeating
+    the dedup check."""
+    r = runner_with_telemetry
+    _write_cycle_events(r, [
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 1000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 2000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
+    ])
+    r._maybe_escalate_frozen_loop()  # streak hits threshold → 1 emission
+
+    # Now the streak grows by 3 more all-continue cycles (no break).
+    _write_cycle_events(r, [
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 4000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 5000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 6000},
+    ])
+    r._maybe_escalate_frozen_loop()  # same streak — must NOT re-emit
+
+    types = _read_runner_event_types(r)
+    assert types.count("cycle.escalated") == 1, (
+        "gate re-fired on a streak that never broke — dedup walks the wrong window"
+    )
+    handoffs = list(r.HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
+    assert len(handoffs) == 1
+
+
+def test_escalation_re_fires_after_streak_breaks_then_reforms(runner_with_telemetry):
+    """Sanity check: a kill cycle resets the streak; a new 3-cycle
+    all-continue run AFTER that kill (with timestamps > the prior escalation)
+    must trigger a SECOND escalation. Uses wall-clock-scale timestamps so
+    the dedup compares apples-to-apples with the real escalation emit time."""
+    import time
+    r = runner_with_telemetry
+    base = int(time.time() * 1000)  # current wall clock ms
+    _write_cycle_events(r, [
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": base + 1000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": base + 2000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": base + 3000},
+    ])
+    r._maybe_escalate_frozen_loop()  # 1st emission
+
+    # Read back the actual escalation timestamp so the second streak's
+    # cycles can be placed AFTER it (mimicking real production timing).
+    first_escalated_ts = max(
+        e["timestamp"] for e in _all_runner_events(r)
+        if e["eventType"] == "cycle.escalated"
+    )
+
+    # Streak break: a kill cycle, then a new all-continue streak forms.
+    # All these timestamps are AFTER the first escalation emit.
+    _write_cycle_events(r, [
+        {"evaluated": 5, "kinds": {"kill": 5}, "ts": first_escalated_ts + 1000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": first_escalated_ts + 2000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": first_escalated_ts + 3000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": first_escalated_ts + 4000},
+    ])
+    r._maybe_escalate_frozen_loop()  # NEW streak → SHOULD re-emit
+
+    types = _read_runner_event_types(r)
+    assert types.count("cycle.escalated") == 2
 
 
 def test_escalation_skipped_when_kill_within_window(runner_with_telemetry):
