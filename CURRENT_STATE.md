@@ -7,7 +7,7 @@ updated: 2026-04-27
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-27T17:00Z — adversarial review of escalation gate complete (commit 7eb9292 deployed). State-file seed re-corrected (07:30Z 04-26 → 02:36:44Z 04-27, the verified prior emission). Gate hardened: schema validation on state load (rejects null/string/list/future-dated) + read window 200→5000 events + fail-open on uncovered dedup horizon. +2 regression tests; 125→127. Review artifact at `supervisor/.reviews/atlas-escalation-gate-2026-04-27T17-00Z.md`.
+**Last updated**: 2026-04-27T23:35Z — recurring 24h escalation: 20:15Z kill (evidence 173→183) broke prior streak; new 3-cycle continue streak (21:28/22:30/23:31) emitted exactly one cycle.escalated as designed. State file correctly anchored (streak_start=21:28:46Z, emitted=23:31:26Z). Principal-class tuning options A–D still unanswered. Hardened gate (commit 7eb9292) holding under live conditions.
 
 ---
 
