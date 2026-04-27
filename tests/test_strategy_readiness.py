@@ -193,6 +193,42 @@ def test_escalation_idempotent_when_streak_grows_past_threshold(runner_with_tele
     assert len(handoffs) == 1
 
 
+def test_escalation_idempotent_across_telemetry_rotation(runner_with_telemetry):
+    """Regression for the 2026-04-27 02:36 false-re-emit:
+    once cycle.escalated has been emitted for a streak, a midnight telemetry
+    rotation that wipes the cycle.escalated event from events.jsonl must
+    NOT cause the gate to re-emit. State persists in
+    .atlas/escalation_state.json, not in the rotated telemetry."""
+    r = runner_with_telemetry
+    _write_cycle_events(r, [
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 1000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 2000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
+    ])
+    r._maybe_escalate_frozen_loop()  # 1st emission, state file written
+
+    # Simulate telemetry rotation: events.jsonl is truncated. The previous
+    # cycle.escalated event is gone; only the post-rotation cycle.completed
+    # events remain.
+    r.TELEMETRY_PATH.write_text("")
+    _write_cycle_events(r, [
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 4000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 5000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 6000},
+    ])
+    r._maybe_escalate_frozen_loop()  # same logical streak — must NOT re-emit
+
+    types = _read_runner_event_types(r)
+    assert types.count("cycle.escalated") == 0, (
+        "cycle.escalated event in *post-rotation* file means the gate re-fired "
+        "after rotation hid the prior emission"
+    )
+    # The handoff was written by the FIRST call; dedup glob in
+    # _write_frozen_loop_handoff prevents a second one.
+    handoffs = list(r.HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
+    assert len(handoffs) == 1
+
+
 def test_escalation_re_fires_after_streak_breaks_then_reforms(runner_with_telemetry):
     """Sanity check: a kill cycle resets the streak; a new 3-cycle
     all-continue run AFTER that kill (with timestamps > the prior escalation)

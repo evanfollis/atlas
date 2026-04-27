@@ -1083,6 +1083,40 @@ class AutonomousRunner:
                     events.append(e)
         return events[-max_events:]
 
+    def _escalation_state_path(self) -> Path:
+        """Authoritative dedup state for the frozen-loop gate. Lives under
+        .atlas/ so it survives both runner restart and telemetry rotation.
+
+        The previous design read prior `cycle.escalated` events back from
+        `events.jsonl`, which broke at midnight UTC when the workspace
+        telemetry collector rotated yesterday's events to a `.gz` archive
+        the gate did not read.
+        """
+        return self.base_dir / ".atlas" / "escalation_state.json"
+
+    def _load_escalation_state(self) -> dict:
+        path = self._escalation_state_path()
+        if not path.exists():
+            return {}
+        try:
+            return json.loads(path.read_text())
+        except Exception as exc:
+            log.warning("Failed to read escalation state %s: %s", path, exc)
+            return {}
+
+    def _save_escalation_state(self, streak_start_ts: int, emitted_ts: int) -> None:
+        path = self._escalation_state_path()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(path.suffix + ".tmp")
+            tmp.write_text(json.dumps({
+                "last_streak_start_ts": streak_start_ts,
+                "last_emitted_ts": emitted_ts,
+            }))
+            tmp.replace(path)
+        except Exception as exc:
+            log.warning("Failed to write escalation state %s: %s", path, exc)
+
     def _maybe_escalate_frozen_loop(self) -> None:
         """Emit a `cycle.escalated` event and write an URGENT handoff if the
         last `FROZEN_LOOP_ESCALATION_AFTER` cycle.completed events were all
@@ -1093,6 +1127,9 @@ class AutonomousRunner:
         start (walks back through every consecutive all-continue cycle, not
         just the threshold-many newest), so a streak that grows past N does
         not re-emit just because the threshold-window's start has shifted.
+        Dedup is persisted to `.atlas/escalation_state.json` so it survives
+        midnight telemetry rotation that would otherwise hide prior
+        `cycle.escalated` events from the events.jsonl scan.
         """
         events = self._read_recent_runner_events()
         if not events:
@@ -1122,14 +1159,28 @@ class AutonomousRunner:
 
         streak_start_ts = streak[-1].get("timestamp", 0)
 
-        # Idempotent: skip if a cycle.escalated event was emitted at any
-        # point during the current streak's lifetime (i.e., its emit timestamp
-        # is at or after the streak's true start).
-        for e in events:
-            if (e.get("eventType") == "cycle.escalated"
-                    and e.get("timestamp", 0) >= streak_start_ts):
+        # Idempotent across log rotation: state file persists the last
+        # emission's timestamp. A re-emission only makes sense if the streak
+        # has actually broken since then — i.e., a kill / promote / pivot
+        # cycle.completed has appeared since `last_emitted_ts`. Comparing
+        # streak_start timestamps does NOT survive midnight telemetry
+        # rotation, because the post-rotation events.jsonl no longer contains
+        # the cycles that started the previous streak.
+        state = self._load_escalation_state()
+        last_emitted_ts = state.get("last_emitted_ts")
+        if last_emitted_ts is not None:
+            broken_since_last = any(
+                e.get("eventType") == "cycle.completed"
+                and e.get("timestamp", 0) > last_emitted_ts
+                and (lambda d: d.get("hypotheses_evaluated", 0) > 0
+                     and set((d.get("decisions_by_kind") or {}).keys()) != {"continue"}
+                     )(e.get("details", {}) or {})
+                for e in events
+            )
+            if not broken_since_last:
                 return
 
+        emitted_ts = int(datetime.now(timezone.utc).timestamp() * 1000)
         self._emit_telemetry(
             "cycle.escalated",
             level="warning",
@@ -1145,6 +1196,7 @@ class AutonomousRunner:
                 ),
             },
         )
+        self._save_escalation_state(streak_start_ts, emitted_ts)
         self._write_frozen_loop_handoff(streak)
 
     def _write_frozen_loop_handoff(self, streak: list[dict]) -> None:
