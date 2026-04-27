@@ -2,12 +2,12 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-26T21:35Z — S3-P2 dedup fix verified end-to-end: kill cycle at 18:14Z broke the prior streak (evidence 153→163), new 3-cycle continue streak (19:27/20:29/21:30Z) emitted exactly ONE cycle.escalated as designed. Recurring 24h URGENT cadence is the predicted signal of the open cache-vs-threshold question (still principal-class). Two-hypothesis `testing` orphan and pool-rotation findings remain open from the 14:21Z reflection.
+**Last updated**: 2026-04-27T02:40Z — S3-P2 gate fix #2: dedup state now persists to `.atlas/escalation_state.json` to survive midnight telemetry rotation (commit ee9beaf). The 02:36Z URGENT was the rotation hiding the prior 21:30Z 04-26 escalation event from the gate's events.jsonl scan. Seeded state with prior emission. Open: principal-class tuning, pool backlog, testing orphans, overdue adversarial review.
 
 ---
 
@@ -20,6 +20,7 @@ updated: 2026-04-26
 - **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`, `.canon/`.
 
 ## What just shipped
+- **S3-P2 gate fix #2 — rotation-safe dedup (2026-04-27T02:40Z) — PUSHED (commit ee9beaf) + DEPLOYED**: dedup now persists to `.atlas/escalation_state.json` (atomic write) and uses a semantic check ("has any non-continue cycle.completed appeared since last_emitted_ts?") instead of a streak-start timestamp comparison. The earlier timestamp form survived in-memory streak growth (commit 34f4a83) but was incidentally broken by midnight telemetry rotation: the post-rotation events.jsonl no longer contains prior cycle.escalated events, and the post-rotation visible streak start drifted later than the true streak start. State file seeded with the legitimate prior emission (21:30Z 04-26) so the post-deploy gate doesn't fire spuriously. +1 regression test simulating telemetry rotation. Tests 124 → 125.
 - **S3-P2 gate dedup fix (2026-04-26T02:41Z) — PUSHED (commit 34f4a83) + DEPLOYED**: walk-back now covers the entire streak instead of stopping at `FROZEN_LOOP_ESCALATION_AFTER`. Bug surfaced at 02:37Z when the gate re-fired on a streak that had not broken since 17:12Z 04-25 — `streak_start_ts` had drifted forward as the streak grew past the threshold, eventually outpacing the prior escalation's emit timestamp and defeating the dedup check. +2 regression tests cover both "streak grows past threshold" (must NOT re-emit) and "kill resets, new streak forms" (MUST re-emit). Tests 122 → 124. The duplicate `URGENT-atlas-frozen-loop-2026-04-26T02-37Z.md` was deleted; the legitimate prior escalation (`general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`) still represents the open principal-class tuning question.
 - **Strategy-readiness CLI + S3-P2 escalation gate (2026-04-25T19:30Z) — PUSHED (commit 90bd5fc) + DEPLOYED (service restart 2026-04-25T19:27:30Z)**:
   - `atlas strategy readiness` — one-screen verdict: classification (research-only / strategy-candidate / paper-trading-ready / live-capital-ready), promoted primitive count, promotable candidate count (mechanical: passes promotion gate now), evidence distribution (quality/direction), all-continue streak from telemetry. Backed by store + telemetry, not hand-written state.
@@ -38,7 +39,7 @@ updated: 2026-04-26
 - ~~**No `cycle.completed` event**~~ — **Fixed 2026-04-24T15:37Z (commit 66a3db7)**: `runner.py` now emits `cycle.completed` on the happy path with `decisions_by_kind` payload. First post-deploy emission confirmed `{"continue": 5}` across 5 hypotheses with `total_evidence_store_size=133` — the all-continue frozen-loop state is now directly visible in telemetry. (`cycle.failed` already existed at line 975.)
 - **`/review` EROFS** still blocks; workaround via `adversarial-review.sh` in use.
 - **Two hypotheses stuck in `testing` indefinitely** (new, 2026-04-26): `10dc7fca3973e82a` and `4fdf3a65763ab083` are funding-rate hypotheses that cannot execute because BitMEX/Kraken Futures data is unavailable. No data-unavailability abort path exists; they will never exit `testing` without intervention. Runner evaluates only the 5 signal-scanner hypotheses each cycle; these orphans consume Bonferroni budget slots if ever selected.
-- **Hypothesis pool not rotating** (new, 2026-04-26): runner selects the same 5 hypothesis IDs every cycle (`1266c7d9`, `b5abd14e`, `dd8ac3bb`, `e48f65d9`, `047a4d40`). 12 other formulated hypotheses have never been evaluated. `generate_hypotheses()` appears to re-scan signals and reproduce the same 5 from scratch rather than rotating through the existing formulated pool.
+- **Hypothesis pool rotation via signal scanner only** (open, 3rd carry-forward): runner bypasses 17 existing `formulated` hypotheses and always generates fresh hypotheses from the signal scanner. Pool now 69 total (50 falsified, 17 formulated, 2 stuck testing). Kill cycles cause hypothesis IDs to change (confirmed 04-26T18:14Z), but the 17 formulated backlog is never consumed. `signals_found` stays at 22 regardless of data refresh.
 
 ### Autonomous loop deployed via systemd (2026-04-24T12:27Z) — UNCOMMITTED
 Per principal authorization on `atlas-autonomous-loop-deploy-2026-04-24T12-40Z` handoff. Atlas now runs as a persistent systemd service:
@@ -157,5 +158,5 @@ Session c5472d70 (Opus 4.7) resolved all 4 pending handoffs and closed both URGE
 1. **Principal decision on cache-vs-threshold tuning**: `DATASET_RETEST_AFTER=1day` + `FROZEN_LOOP_ESCALATION_AFTER=3` means the S3-P2 gate fires ~daily and writes/deletes URGENT handoffs. Gate is correct; the system is stuck in research-only state with 0 promotable hypotheses. Options A–D documented in `runtime/.meta/general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`. No code change is possible without a principal decision.
 2. **Hypothesis scheduling + stuck-testing orphans**: runner always selects the same 5 hypotheses; 12 formulated hypotheses never evaluated. Two hypotheses (`10dc7fca`, `4fdf3a65`) are permanently stuck in `testing` (funding-rate data unavailable). Both issues diagnosed in reflection 2026-04-26T14:21Z. Principal question: should the runner rotate through the formulated pool, and should stuck `testing` hypotheses time out?
 3. Run `.venv/bin/python -m pytest` to confirm **124/124** baseline (updated: 122 → 124 after 34f4a83).
-4. **`/review` the S3-P2 escalation gate** (2nd carry-forward): `src/atlas/runner.py:1086–1144` (commit `90bd5fc`, 203 lines) has not been adversarially reviewed. The dedup bug found and fixed in `34f4a83` was in this code. Run `adversarial-review.sh` on this path before the next feature.
+4. **`/review` the S3-P2 escalation gate** (3rd carry-forward, now overdue): `src/atlas/runner.py:1086–1144` (commit `90bd5fc`, 203 lines) has not been adversarially reviewed. The dedup bug found and fixed in `34f4a83` was in this code. Run `adversarial-review.sh` on this path before the next feature.
 5. **Migration merge-collapse** (4th carry-forward): `scripts/migrate_claim_hash.py` merge path discards non-claim fields from colliding hypotheses. The `--allow-merge` gate aborts on detection — but the behavior on merge-allowed runs is untested. Add a fixture with differing `rationale` fields.
