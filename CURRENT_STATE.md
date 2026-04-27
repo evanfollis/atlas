@@ -7,7 +7,7 @@ updated: 2026-04-27
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-27T02:40Z — S3-P2 gate fix #2: dedup state now persists to `.atlas/escalation_state.json` to survive midnight telemetry rotation (commit ee9beaf). The 02:36Z URGENT was the rotation hiding the prior 21:30Z 04-26 escalation event from the gate's events.jsonl scan. Seeded state with prior emission. Open: principal-class tuning, pool backlog, testing orphans, overdue adversarial review.
+**Last updated**: 2026-04-27T17:00Z — adversarial review of escalation gate complete (commit 7eb9292 deployed). State-file seed re-corrected (07:30Z 04-26 → 02:36:44Z 04-27, the verified prior emission). Gate hardened: schema validation on state load (rejects null/string/list/future-dated) + read window 200→5000 events + fail-open on uncovered dedup horizon. +2 regression tests; 125→127. Review artifact at `supervisor/.reviews/atlas-escalation-gate-2026-04-27T17-00Z.md`.
 
 ---
 
@@ -33,6 +33,8 @@ updated: 2026-04-27
 
 ## Known broken or degraded
 
+- ~~**State file timestamp anomaly**~~ — **Resolved 2026-04-27T17:00Z**: my original seed had a 14-hour math error (used 07:30Z when I claimed 21:30Z). Re-seeded with verified values from the 04-27 02:36:44Z emission visible in current events.jsonl: `{"last_streak_start_ts": 1777250052457, "last_emitted_ts": 1777257404561}`. Gate is now correctly anchored.
+- **Concurrent runner safety** (known soft edge, not URGENT): `_maybe_escalate_frozen_loop` read-check-write is not atomic. A parallel `atlas run --once` debug session running alongside the live service could double-emit. Worst case is 2 telemetry events + 1 URGENT file (handoff dedup wins eventually). flock would close it; tracked but deferred per the 17:00Z review.
 - **Cache-vs-gate misalignment** (open, principal-class): `DATASET_RETEST_AFTER = 1 day` and `FROZEN_LOOP_ESCALATION_AFTER = 3 cycles` interact such that the gate fires roughly once per 24h between productive cycles. The gate firing is correct epistemic signal (the loop genuinely cannot promote during the cache window), but produces a recurring URGENT. Tuning options A–D documented in `general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`. No code change without principal direction. Confirmed cadence via 04-26 18:14Z kill (evidence 153→163) → 21:30Z escalation (3-cycle new streak); the dedup-fixed gate is working precisely as documented.
 - **Telemetry pollution (cosmetic)**: 4 `cycle.escalated` events in `events.jsonl` from initial test runs before `_emit_telemetry` was refactored to honor `self.TELEMETRY_PATH`. Bogus markers (`streak_start_ts=1000`, `evidence=0`); harmless to gate logic. Not scrubbing the shared file.
 - ~~**Evidence accumulation frozen at 133**~~ — **Resolved 2026-04-25T15:58Z**: bf6fc4e pushed and service restarted. Post-restart cycle.completed shows `{kill: 5}` with `total_evidence_store_size: 143`. The freshness fix is live and producing correct falsifications.
@@ -157,6 +159,6 @@ Session c5472d70 (Opus 4.7) resolved all 4 pending handoffs and closed both URGE
 ## What the next agent must read first
 1. **Principal decision on cache-vs-threshold tuning**: `DATASET_RETEST_AFTER=1day` + `FROZEN_LOOP_ESCALATION_AFTER=3` means the S3-P2 gate fires ~daily and writes/deletes URGENT handoffs. Gate is correct; the system is stuck in research-only state with 0 promotable hypotheses. Options A–D documented in `runtime/.meta/general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`. No code change is possible without a principal decision.
 2. **Hypothesis scheduling + stuck-testing orphans**: runner always selects the same 5 hypotheses; 12 formulated hypotheses never evaluated. Two hypotheses (`10dc7fca`, `4fdf3a65`) are permanently stuck in `testing` (funding-rate data unavailable). Both issues diagnosed in reflection 2026-04-26T14:21Z. Principal question: should the runner rotate through the formulated pool, and should stuck `testing` hypotheses time out?
-3. Run `.venv/bin/python -m pytest` to confirm **124/124** baseline (updated: 122 → 124 after 34f4a83).
-4. **`/review` the S3-P2 escalation gate** (3rd carry-forward, now overdue): `src/atlas/runner.py:1086–1144` (commit `90bd5fc`, 203 lines) has not been adversarially reviewed. The dedup bug found and fixed in `34f4a83` was in this code. Run `adversarial-review.sh` on this path before the next feature.
+3. Run `.venv/bin/python -m pytest` to confirm **125/125** baseline (updated: 124 → 125 after ee9beaf).
+4. **`/review` the S3-P2 escalation gate — URGENT (4th carry-forward, threshold breached)**: `src/atlas/runner.py:1086–1196` (commit `90bd5fc`, updated in `ee9beaf`) has had two dedup bugs in two weeks. The workspace 3-cycle escalation threshold is breached. Run `adversarial-review.sh` on `_maybe_escalate_frozen_loop` and supporting helpers before the next feature. `/review` EROFS workaround is valid (see `supervisor/scripts/lib/adversarial-review.sh`).
 5. **Migration merge-collapse** (4th carry-forward): `scripts/migrate_claim_hash.py` merge path discards non-claim fields from colliding hypotheses. The `--allow-merge` gate aborts on detection — but the behavior on merge-allowed runs is untested. Add a fixture with differing `rationale` fields.
