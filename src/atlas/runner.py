@@ -1062,10 +1062,19 @@ class AutonomousRunner:
     TELEMETRY_PATH = Path("/opt/workspace/runtime/.telemetry/events.jsonl")
     HANDOFF_DIR = Path("/opt/workspace/runtime/.handoff")
 
-    def _read_recent_runner_events(self, max_events: int = 200) -> list[dict]:
+    # max_events sized for ~5000 atlas.runner events ≈ 600 hours of cycles
+    # at ~8 events/cycle. The dedup check at `_maybe_escalate_frozen_loop`
+    # requires the window to cover everything since `last_emitted_ts`; the
+    # window is bounded but big enough that exceeding it is itself a signal
+    # the loop is in a wildly unexpected state.
+    READ_WINDOW_MAX_EVENTS = 5000
+
+    def _read_recent_runner_events(self, max_events: int | None = None) -> list[dict]:
         """Return the most recent atlas.runner events from the workspace
         telemetry stream. Reads the file once; cheap enough for a per-cycle
         check at our cadence."""
+        if max_events is None:
+            max_events = self.READ_WINDOW_MAX_EVENTS
         path = self.TELEMETRY_PATH
         if not path.exists():
             return []
@@ -1095,14 +1104,34 @@ class AutonomousRunner:
         return self.base_dir / ".atlas" / "escalation_state.json"
 
     def _load_escalation_state(self) -> dict:
+        """Return the dedup state, validated. A malformed file (anything but
+        a JSON object whose `last_streak_start_ts` and `last_emitted_ts`
+        coerce to int) is treated as empty so the gate fails-open rather
+        than going silent on a string/null/array/future-dated value.
+        """
         path = self._escalation_state_path()
         if not path.exists():
             return {}
         try:
-            return json.loads(path.read_text())
+            raw = json.loads(path.read_text())
         except Exception as exc:
             log.warning("Failed to read escalation state %s: %s", path, exc)
             return {}
+        if not isinstance(raw, dict):
+            log.warning("Escalation state %s is not a dict; ignoring", path)
+            return {}
+        out: dict = {}
+        for key in ("last_streak_start_ts", "last_emitted_ts"):
+            if key in raw:
+                try:
+                    out[key] = int(raw[key])
+                except (TypeError, ValueError):
+                    log.warning(
+                        "Escalation state %s has non-int %s=%r; ignoring",
+                        path, key, raw[key],
+                    )
+                    return {}
+        return out
 
     def _save_escalation_state(self, streak_start_ts: int, emitted_ts: int) -> None:
         path = self._escalation_state_path()
@@ -1169,16 +1198,31 @@ class AutonomousRunner:
         state = self._load_escalation_state()
         last_emitted_ts = state.get("last_emitted_ts")
         if last_emitted_ts is not None:
-            broken_since_last = any(
-                e.get("eventType") == "cycle.completed"
-                and e.get("timestamp", 0) > last_emitted_ts
-                and (lambda d: d.get("hypotheses_evaluated", 0) > 0
-                     and set((d.get("decisions_by_kind") or {}).keys()) != {"continue"}
-                     )(e.get("details", {}) or {})
-                for e in events
-            )
-            if not broken_since_last:
-                return
+            # Coverage check: if our read window does not reach
+            # last_emitted_ts (i.e., every visible event is younger than the
+            # last emission), we cannot tell whether the streak broke earlier
+            # in time. Fail-open (re-emit) rather than going silent — S3-P2
+            # specifically forbids silent monitoring.
+            oldest_visible_ts = min((e.get("timestamp", 0) for e in events),
+                                     default=0)
+            if oldest_visible_ts > last_emitted_ts:
+                log.warning(
+                    "Frozen-loop dedup window (%d events) does not reach "
+                    "last_emitted_ts=%d; oldest visible=%d. Fail-open: emit.",
+                    len(events), last_emitted_ts, oldest_visible_ts,
+                )
+                # fall through to emit
+            else:
+                broken_since_last = any(
+                    e.get("eventType") == "cycle.completed"
+                    and e.get("timestamp", 0) > last_emitted_ts
+                    and (lambda d: d.get("hypotheses_evaluated", 0) > 0
+                         and set((d.get("decisions_by_kind") or {}).keys()) != {"continue"}
+                         )(e.get("details", {}) or {})
+                    for e in events
+                )
+                if not broken_since_last:
+                    return
 
         emitted_ts = int(datetime.now(timezone.utc).timestamp() * 1000)
         self._emit_telemetry(

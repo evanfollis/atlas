@@ -193,6 +193,48 @@ def test_escalation_idempotent_when_streak_grows_past_threshold(runner_with_tele
     assert len(handoffs) == 1
 
 
+def test_state_file_corruption_falls_back_to_empty(runner_with_telemetry, tmp_path):
+    """Corrupt / wrong-shape state file (string, list, null, non-int values)
+    must not poison the gate — `_load_escalation_state` returns {}."""
+    r = runner_with_telemetry
+    state_path = r._escalation_state_path()
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+
+    state_path.write_text("not json")
+    assert r._load_escalation_state() == {}
+
+    state_path.write_text(json.dumps([1, 2, 3]))
+    assert r._load_escalation_state() == {}
+
+    state_path.write_text(json.dumps({"last_emitted_ts": "not-an-int"}))
+    assert r._load_escalation_state() == {}
+
+    state_path.write_text(json.dumps({"last_emitted_ts": None}))
+    assert r._load_escalation_state() == {}
+
+    state_path.write_text(json.dumps({"last_streak_start_ts": 12345}))
+    assert r._load_escalation_state() == {"last_streak_start_ts": 12345}
+
+
+def test_dedup_fails_open_when_window_doesnt_reach_last_emitted(runner_with_telemetry):
+    """If every visible event is younger than `last_emitted_ts`, the dedup
+    horizon is uncovered. The gate must re-emit (fail-open) rather than
+    going silent — S3-P2 forbids silent self-monitoring."""
+    r = runner_with_telemetry
+    # Seed state with an OLDER timestamp than any visible event will have.
+    r._save_escalation_state(streak_start_ts=100, emitted_ts=200)
+
+    # All visible events are AFTER last_emitted_ts (200).
+    _write_cycle_events(r, [
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 1000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 2000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
+    ])
+    r._maybe_escalate_frozen_loop()
+    types = _read_runner_event_types(r)
+    assert types.count("cycle.escalated") == 1
+
+
 def test_escalation_idempotent_across_telemetry_rotation(runner_with_telemetry):
     """Regression for the 2026-04-27 02:36 false-re-emit:
     once cycle.escalated has been emitted for a streak, a midnight telemetry
