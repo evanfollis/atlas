@@ -2,12 +2,12 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-04-27T23:35Z — recurring 24h escalation: 20:15Z kill (evidence 173→183) broke prior streak; new 3-cycle continue streak (21:28/22:30/23:31) emitted exactly one cycle.escalated as designed. State file correctly anchored (streak_start=21:28:46Z, emitted=23:31:26Z). Principal-class tuning options A–D still unanswered. Hardened gate (commit 7eb9292) holding under live conditions.
+**Last updated**: 2026-04-28T02:40Z — Yet another self-bug: my 7eb9292 fail-open coverage check was triggering every midnight UTC (oldest visible event > yesterday's last_emitted_ts → fail-open → emit). Removed the coverage clause in commit 61542d3; deployed at 02:39:27Z. State file rewound to legitimate 04-27 23:31:26Z anchor (the 02:35Z 04-28 emission was from the bug being fixed). Tests 127 → 128.
 
 ---
 
@@ -33,6 +33,7 @@ updated: 2026-04-27
 
 ## Known broken or degraded
 
+- **Test count mismatch in prior CURRENT_STATE** — now corrected. 7eb9292 added 2 regression tests (state-file corruption + window coverage fail-open), raising count to 127, but CURRENT_STATE was not updated at the time.
 - ~~**State file timestamp anomaly**~~ — **Resolved 2026-04-27T17:00Z**: my original seed had a 14-hour math error (used 07:30Z when I claimed 21:30Z). Re-seeded with verified values from the 04-27 02:36:44Z emission visible in current events.jsonl: `{"last_streak_start_ts": 1777250052457, "last_emitted_ts": 1777257404561}`. Gate is now correctly anchored.
 - **Concurrent runner safety** (known soft edge, not URGENT): `_maybe_escalate_frozen_loop` read-check-write is not atomic. A parallel `atlas run --once` debug session running alongside the live service could double-emit. Worst case is 2 telemetry events + 1 URGENT file (handoff dedup wins eventually). flock would close it; tracked but deferred per the 17:00Z review.
 - **Cache-vs-gate misalignment** (open, principal-class): `DATASET_RETEST_AFTER = 1 day` and `FROZEN_LOOP_ESCALATION_AFTER = 3 cycles` interact such that the gate fires roughly once per 24h between productive cycles. The gate firing is correct epistemic signal (the loop genuinely cannot promote during the cache window), but produces a recurring URGENT. Tuning options A–D documented in `general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`. No code change without principal direction. Confirmed cadence via 04-26 18:14Z kill (evidence 153→163) → 21:30Z escalation (3-cycle new streak); the dedup-fixed gate is working precisely as documented.
@@ -159,6 +160,6 @@ Session c5472d70 (Opus 4.7) resolved all 4 pending handoffs and closed both URGE
 ## What the next agent must read first
 1. **Principal decision on cache-vs-threshold tuning**: `DATASET_RETEST_AFTER=1day` + `FROZEN_LOOP_ESCALATION_AFTER=3` means the S3-P2 gate fires ~daily and writes/deletes URGENT handoffs. Gate is correct; the system is stuck in research-only state with 0 promotable hypotheses. Options A–D documented in `runtime/.meta/general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`. No code change is possible without a principal decision.
 2. **Hypothesis scheduling + stuck-testing orphans**: runner always selects the same 5 hypotheses; 12 formulated hypotheses never evaluated. Two hypotheses (`10dc7fca`, `4fdf3a65`) are permanently stuck in `testing` (funding-rate data unavailable). Both issues diagnosed in reflection 2026-04-26T14:21Z. Principal question: should the runner rotate through the formulated pool, and should stuck `testing` hypotheses time out?
-3. Run `.venv/bin/python -m pytest` to confirm **125/125** baseline (updated: 124 → 125 after ee9beaf).
+3. Run `.venv/bin/python -m pytest` to confirm **127/127** baseline (124 → 125 after ee9beaf, 125 → 127 after 7eb9292).
 4. **`/review` the S3-P2 escalation gate — URGENT (4th carry-forward, threshold breached)**: `src/atlas/runner.py:1086–1196` (commit `90bd5fc`, updated in `ee9beaf`) has had two dedup bugs in two weeks. The workspace 3-cycle escalation threshold is breached. Run `adversarial-review.sh` on `_maybe_escalate_frozen_loop` and supporting helpers before the next feature. `/review` EROFS workaround is valid (see `supervisor/scripts/lib/adversarial-review.sh`).
 5. **Migration merge-collapse** (4th carry-forward): `scripts/migrate_claim_hash.py` merge path discards non-claim fields from colliding hypotheses. The `--allow-merge` gate aborts on detection — but the behavior on merge-allowed runs is untested. Add a fixture with differing `rationale` fields.
