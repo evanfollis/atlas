@@ -1198,31 +1198,30 @@ class AutonomousRunner:
         state = self._load_escalation_state()
         last_emitted_ts = state.get("last_emitted_ts")
         if last_emitted_ts is not None:
-            # Coverage check: if our read window does not reach
-            # last_emitted_ts (i.e., every visible event is younger than the
-            # last emission), we cannot tell whether the streak broke earlier
-            # in time. Fail-open (re-emit) rather than going silent — S3-P2
-            # specifically forbids silent monitoring.
-            oldest_visible_ts = min((e.get("timestamp", 0) for e in events),
-                                     default=0)
-            if oldest_visible_ts > last_emitted_ts:
-                log.warning(
-                    "Frozen-loop dedup window (%d events) does not reach "
-                    "last_emitted_ts=%d; oldest visible=%d. Fail-open: emit.",
-                    len(events), last_emitted_ts, oldest_visible_ts,
-                )
-                # fall through to emit
-            else:
-                broken_since_last = any(
-                    e.get("eventType") == "cycle.completed"
-                    and e.get("timestamp", 0) > last_emitted_ts
-                    and (lambda d: d.get("hypotheses_evaluated", 0) > 0
-                         and set((d.get("decisions_by_kind") or {}).keys()) != {"continue"}
-                         )(e.get("details", {}) or {})
-                    for e in events
-                )
-                if not broken_since_last:
-                    return
+            # The dedup question is "has any non-continue cycle.completed
+            # appeared since last_emitted_ts?". If yes, the streak broke and
+            # this is a NEW streak — emit. If no, the streak is unchanged —
+            # suppress.
+            #
+            # Coverage caveat: if a kill rotates out of events.jsonl
+            # entirely (would take >5000 atlas.runner events ≈ ~26 days at
+            # the current cadence), we can no longer see it and the gate
+            # may suppress a new streak. That is preferable to firing every
+            # midnight when yesterday's kill rotates out — the prior
+            # fail-open did exactly that and produced one false-positive
+            # URGENT per day. If the gate has been silent for >26 days,
+            # something else has gone very wrong and an operator should
+            # already be looking.
+            broken_since_last = any(
+                e.get("eventType") == "cycle.completed"
+                and e.get("timestamp", 0) > last_emitted_ts
+                and (lambda d: d.get("hypotheses_evaluated", 0) > 0
+                     and set((d.get("decisions_by_kind") or {}).keys()) != {"continue"}
+                     )(e.get("details", {}) or {})
+                for e in events
+            )
+            if not broken_since_last:
+                return
 
         emitted_ts = int(datetime.now(timezone.utc).timestamp() * 1000)
         self._emit_telemetry(

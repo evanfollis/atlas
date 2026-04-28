@@ -216,19 +216,42 @@ def test_state_file_corruption_falls_back_to_empty(runner_with_telemetry, tmp_pa
     assert r._load_escalation_state() == {"last_streak_start_ts": 12345}
 
 
-def test_dedup_fails_open_when_window_doesnt_reach_last_emitted(runner_with_telemetry):
-    """If every visible event is younger than `last_emitted_ts`, the dedup
-    horizon is uncovered. The gate must re-emit (fail-open) rather than
-    going silent — S3-P2 forbids silent self-monitoring."""
+def test_dedup_suppresses_after_midnight_rotation_when_no_break_visible(runner_with_telemetry):
+    """Regression for the 2026-04-28 02:35Z false-positive:
+    after midnight UTC telemetry rotation, every visible event is younger
+    than `last_emitted_ts`. The gate must NOT treat this as "uncovered →
+    fail-open" because that produces one false-positive per day. If all
+    visible cycles are continue, suppress; if any visible cycle is non-
+    continue, that visible kill is sufficient to detect the new streak."""
     r = runner_with_telemetry
-    # Seed state with an OLDER timestamp than any visible event will have.
+    # Seed state with an older timestamp than any visible event (mimics the
+    # post-rotation case where last_emitted_ts is from yesterday).
     r._save_escalation_state(streak_start_ts=100, emitted_ts=200)
 
-    # All visible events are AFTER last_emitted_ts (200).
+    # All visible events are AFTER last_emitted_ts AND all-continue.
     _write_cycle_events(r, [
         {"evaluated": 5, "kinds": {"continue": 5}, "ts": 1000},
         {"evaluated": 5, "kinds": {"continue": 5}, "ts": 2000},
         {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
+    ])
+    r._maybe_escalate_frozen_loop()
+    types = _read_runner_event_types(r)
+    assert types.count("cycle.escalated") == 0
+
+
+def test_visible_kill_after_old_emission_triggers_re_emit(runner_with_telemetry):
+    """If `last_emitted_ts` is older than the visible window AND a kill
+    cycle.completed is in the visible window, the gate correctly detects a
+    new streak after the visible kill. The 5000-event read window covers
+    >25 days so the only loss case is rotation of a kill so old that the
+    operator should have noticed silence anyway."""
+    r = runner_with_telemetry
+    r._save_escalation_state(streak_start_ts=100, emitted_ts=200)
+    _write_cycle_events(r, [
+        {"evaluated": 5, "kinds": {"kill": 5}, "ts": 1000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 2000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
+        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 4000},
     ])
     r._maybe_escalate_frozen_loop()
     types = _read_runner_event_types(r)
