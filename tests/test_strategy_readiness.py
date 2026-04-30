@@ -342,19 +342,52 @@ def test_escalation_skipped_when_kill_within_window(runner_with_telemetry):
     assert "cycle.escalated" not in types
 
 
-def test_vacuous_cycles_do_not_count(runner_with_telemetry):
-    """A cycle with zero hypotheses evaluated must neither contribute to
-    nor break the streak."""
+def test_empty_cycles_count_as_stuck(runner_with_telemetry):
+    """Regression for the 2026-04-30 14:18Z 'No hypotheses generated' freeze:
+    14+ empty cycles ran without the gate firing because the previous
+    semantics SKIPPED vacuous cycles (treating them as neither stuck nor
+    productive). They are stuck — the loop is producing no falsifying
+    evidence and no decisions. Three consecutive empty cycles must trigger
+    the gate."""
+    r = runner_with_telemetry
+    _write_cycle_events(r, [
+        {"evaluated": 0, "kinds": {}, "ts": 1000},
+        {"evaluated": 0, "kinds": {}, "ts": 2000},
+        {"evaluated": 0, "kinds": {}, "ts": 3000},
+    ])
+    r._maybe_escalate_frozen_loop()
+    types = _read_runner_event_types(r)
+    assert types.count("cycle.escalated") == 1
+
+
+def test_mixed_empty_and_all_continue_cycles_form_streak(runner_with_telemetry):
+    """A streak of stuck cycles can mix empty + all-continue; both forms
+    are 'no kill/promote/pivot was produced' and must be treated as one
+    contiguous streak."""
     r = runner_with_telemetry
     _write_cycle_events(r, [
         {"evaluated": 5, "kinds": {"continue": 5}, "ts": 1000},
-        {"evaluated": 0, "kinds": {}, "ts": 1500},  # vacuous
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 2000},
+        {"evaluated": 0, "kinds": {}, "ts": 2000},
         {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
     ])
     r._maybe_escalate_frozen_loop()
     types = _read_runner_event_types(r)
     assert types.count("cycle.escalated") == 1
+
+
+def test_kill_breaks_a_streak_of_empty_cycles(runner_with_telemetry):
+    """A real kill must still reset a streak even if surrounded by empty cycles."""
+    r = runner_with_telemetry
+    _write_cycle_events(r, [
+        {"evaluated": 0, "kinds": {}, "ts": 1000},
+        {"evaluated": 5, "kinds": {"kill": 5}, "ts": 2000},
+        {"evaluated": 0, "kinds": {}, "ts": 3000},
+        {"evaluated": 0, "kinds": {}, "ts": 4000},
+    ])
+    r._maybe_escalate_frozen_loop()
+    types = _read_runner_event_types(r)
+    # Streak (after kill) = 2 empties → below threshold of 3
+    assert types.count("cycle.escalated") == 0
 
 
 def test_escalation_threshold_constant_matches_workspace_rule():

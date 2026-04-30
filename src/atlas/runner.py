@@ -914,6 +914,28 @@ class AutonomousRunner:
 
         if not hypotheses:
             log.info("No hypotheses generated this cycle")
+            graph = self.graph_store.load()
+            cycle_report["graph_nodes"] = graph.node_count
+            cycle_report["graph_edges"] = graph.edge_count
+            # Emit cycle.completed even on the empty-hypothesis path so the
+            # S3-P2 gate is not blind to "loop is starving" failures
+            # (regression: 04-30 14:18Z URGENT — runner ran 14h producing
+            # nothing while the gate saw no events to count).
+            self._emit_telemetry(
+                "cycle.completed",
+                details={
+                    "hypotheses_evaluated": 0,
+                    "total_evidence_store_size": len(self.state.list_all("evidence")),
+                    "signals_found": cycle_report.get("signals_found", 0),
+                    "graph_nodes": graph.node_count,
+                    "graph_edges": graph.edge_count,
+                    "decisions_by_kind": {},
+                },
+            )
+            try:
+                self._maybe_escalate_frozen_loop()
+            except Exception as exc:
+                log.warning("Frozen-loop escalation check failed: %s", exc)
             return cycle_report
 
         # Build a lookup from hypothesis claim to the full df
@@ -1168,20 +1190,28 @@ class AutonomousRunner:
         if len(completed) < FROZEN_LOOP_ESCALATION_AFTER:
             return
 
-        # Walk back through EVERY consecutive non-vacuous all-continue cycle.
-        # `streak` ends up holding the entire current streak — its last entry
-        # is the true streak start.
+        # Walk back through every consecutive cycle that produced no
+        # falsifying / promoting / pivoting decision. That includes:
+        #   - all-continue cycles (decisions made, but none decisive)
+        #   - empty cycles (no hypotheses generated; the runner's
+        #     "starving" failure mode discovered 04-30 14:18Z)
+        # The streak breaks only when a kill / promote / pivot appears.
+        # Treating empty cycles as part of the streak (rather than
+        # silently skipping them) is what makes the gate visible to the
+        # starving-loop pathology.
         streak: list[dict] = []
+        STUCK_KINDS = frozenset({"continue"})
         for e in reversed(completed):
             details = e.get("details", {}) or {}
-            n = details.get("hypotheses_evaluated", 0)
-            if n <= 0:
-                continue  # vacuous — skip
             kinds = details.get("decisions_by_kind", {}) or {}
-            if set(kinds.keys()) == {"continue"}:
+            kind_set = set(kinds.keys())
+            n = details.get("hypotheses_evaluated", 0)
+            is_empty = n <= 0
+            is_all_continue = (not is_empty) and kind_set <= STUCK_KINDS
+            if is_empty or is_all_continue:
                 streak.append(e)
             else:
-                break  # streak broken
+                break  # any kill / promote / pivot → streak broken
 
         if len(streak) < FROZEN_LOOP_ESCALATION_AFTER:
             return
@@ -1212,12 +1242,19 @@ class AutonomousRunner:
             # URGENT per day. If the gate has been silent for >26 days,
             # something else has gone very wrong and an operator should
             # already be looking.
+            # The streak is broken only by an actual kill/promote/pivot.
+            # Continue-only and empty cycles are both "stuck" and DO NOT
+            # break the streak (must agree with the walk-back above).
+            def _broke_streak(d: dict) -> bool:
+                if d.get("hypotheses_evaluated", 0) <= 0:
+                    return False  # empty cycle: still stuck
+                kind_set = set((d.get("decisions_by_kind") or {}).keys())
+                return bool(kind_set - STUCK_KINDS)
+
             broken_since_last = any(
                 e.get("eventType") == "cycle.completed"
                 and e.get("timestamp", 0) > last_emitted_ts
-                and (lambda d: d.get("hypotheses_evaluated", 0) > 0
-                     and set((d.get("decisions_by_kind") or {}).keys()) != {"continue"}
-                     )(e.get("details", {}) or {})
+                and _broke_streak(e.get("details", {}) or {})
                 for e in events
             )
             if not broken_since_last:
