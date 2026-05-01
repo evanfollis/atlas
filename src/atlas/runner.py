@@ -41,6 +41,24 @@ DEFAULT_UNIVERSE = [
     ("ETH/USDT", "1h"),
     ("SOL/USDT", "1h"),
 ]
+DEFAULT_UNIVERSE_SET: set[tuple[str, str]] = set(DEFAULT_UNIVERSE)
+
+# Tokens that mark a hypothesis as INFEASIBLE on this Hetzner server: the
+# named exchanges are either geo-blocked or only expose perp/funding feeds
+# we don't ingest. Match against lowercase claim+tags. See ADR-0014 and
+# CLAUDE.md §Default exchange.
+INFEASIBLE_EXCHANGE_TOKENS = (
+    "bitmex",
+    "kraken futures",
+    "krakenfutures",
+    "binance",
+    "bybit",
+)
+
+# Auto-top-up target: how many hypotheses we want under test per cycle.
+# Matches the cap in `generate_hypotheses` so the two paths converge on
+# the same Bonferroni budget.
+TOP_UP_TARGET = 5
 
 # Minimum bars a dataset must have before atlas will scan it for signals.
 # Set to the walk-forward minimum (833 bars) so any dataset we scan can also
@@ -159,6 +177,168 @@ class AutonomousRunner:
         if data:
             return Hypothesis.model_validate(data)
         return None
+
+    @staticmethod
+    def _parse_dataset_from_hypothesis(h: Hypothesis) -> tuple[str, str] | None:
+        """Parse (symbol, timeframe) from hypothesis tags.
+
+        Tag convention from `from_signal` and composite generators:
+        `['btc_usdt', '1h', ...]`. Pair/lead-lag generators emit two
+        `_usdt` tags (`['btc_usdt', 'eth_usdt', '1h', ...]`); we pick the
+        FIRST seen to be deterministic — the cycle's dataset selection
+        will iterate DEFAULT_UNIVERSE for cross-validation regardless.
+
+        Returns None when symbol or timeframe cannot be identified.
+        """
+        sym: str | None = None
+        tf: str | None = None
+        for tag in h.tags:
+            tag_lc = tag.lower()
+            if sym is None and tag_lc.endswith("_usdt"):
+                sym = tag.replace("_", "/").upper()
+            elif tf is None and tag_lc in ("1h", "4h", "1d", "1w"):
+                tf = tag_lc
+        if sym and tf:
+            return (sym, tf)
+        return None
+
+    @staticmethod
+    def _claim_is_permanently_infeasible(h: Hypothesis) -> bool:
+        """A claim is permanently INFEASIBLE only when it names a data
+        source we will never have access to from this deployment (geo-
+        blocked exchanges, perp/funding feeds we don't ingest).
+
+        Distinguishing claim-level infeasibility from environment-level
+        infeasibility is the whole point: INFEASIBLE is a one-way door
+        and must only be opened for properties of the claim itself, not
+        for transient deployment state like "DEFAULT_UNIVERSE doesn't
+        currently include 4h" or "Bitstamp only has 832 bars of SOL
+        right now". Those should leave the hypothesis FORMULATED so the
+        next cycle can re-evaluate when conditions change.
+        """
+        blob = (h.claim + " " + " ".join(h.tags)).lower()
+        return any(token in blob for token in INFEASIBLE_EXCHANGE_TOKENS)
+
+    def _data_currently_available(self, h: Hypothesis) -> bool:
+        """Reversible feasibility check: does this hypothesis have a
+        parseable (symbol, timeframe) in `DEFAULT_UNIVERSE` whose fetch
+        currently returns ≥ MIN_BARS_FOR_RESEARCH bars?
+
+        Returns False on any of: unparseable tags, off-universe pair,
+        fetch error, insufficient history. Caller MUST NOT use this as
+        an INFEASIBLE signal — these are all reversible.
+        """
+        parsed = self._parse_dataset_from_hypothesis(h)
+        if parsed is None:
+            return False
+        if parsed not in DEFAULT_UNIVERSE_SET:
+            return False
+        try:
+            df = self.market.fetch_ohlcv(symbol=parsed[0], timeframe=parsed[1], limit=100000)
+        except Exception:
+            return False
+        return len(df) >= MIN_BARS_FOR_RESEARCH
+
+    def _top_up_from_formulated_pool(self, current: list[Hypothesis]) -> list[Hypothesis]:
+        """Promote currently-feasible FORMULATED hypotheses into the
+        cycle's test set; mark claim-permanently-infeasible ones as
+        INFEASIBLE; leave environmentally-blocked ones FORMULATED.
+
+        Single code path serving both the principal's A (auto-promote when
+        pool is starved) and D2 (STRICT fallback on empty signal scan)
+        decisions — A and D2 are the same operation viewed from two
+        symptoms (pool empty vs. signals absent). Conflating them avoids
+        the drift problem two near-duplicate methods would create.
+
+        Three outcomes per candidate:
+          - PROMOTED → status=TESTING, added to `current`.
+          - INFEASIBLE → status=INFEASIBLE (claim names a permanently-
+            blocked data source like BitMEX). One-way door.
+          - SKIPPED_NOT_PROMOTABLE → status stays FORMULATED. Reason is
+            environmental (off-universe, insufficient bars, unparseable
+            tags) so the next cycle can re-evaluate when conditions
+            change. Counted in telemetry but never persisted as
+            INFEASIBLE — that distinction matters because INFEASIBLE
+            permanently locks a hypothesis out of the loop.
+
+        Bonferroni for the cycle is recomputed by the caller; do not
+        stamp `_bonferroni_n` here.
+        """
+        current_ids = {h.id for h in current}
+        candidates: list[Hypothesis] = []
+        for record in self._list_objs("hypotheses"):
+            if record.get("status") != HypothesisStatus.FORMULATED.value:
+                continue
+            if record.get("id") in current_ids:
+                continue
+            try:
+                candidates.append(Hypothesis.model_validate(record))
+            except Exception as exc:
+                log.warning("Skipping malformed hypothesis record: %s", exc)
+                continue
+
+        # Deterministic ordering — sort by id so behavior is reproducible
+        # across runs and the audit log is stable.
+        candidates.sort(key=lambda c: c.id)
+
+        promoted_ids: list[str] = []
+        infeasible_ids: list[str] = []
+        skipped_ids: list[str] = []
+        for h in candidates:
+            # Permanent infeasibility is a property of the claim — always
+            # mark, even if `current` is already at target, so the pool
+            # gets cleaned up over successive cycles instead of needing
+            # multiple top-up triggers to clear stuck entries.
+            if self._claim_is_permanently_infeasible(h):
+                h.status = HypothesisStatus.INFEASIBLE
+                self._save_obj("hypotheses", h.id, h.model_dump())
+                infeasible_ids.append(h.id)
+                continue
+
+            # Stop promoting once the test set is at target — but keep
+            # iterating in case more INFEASIBLE entries need cleanup.
+            if len(current) >= TOP_UP_TARGET:
+                continue
+
+            try:
+                available = self._data_currently_available(h)
+            except Exception as exc:
+                log.warning("Feasibility check failed for %s: %s", h.id, exc)
+                skipped_ids.append(h.id)
+                continue
+            if not available:
+                # Reversible reason — leave FORMULATED for re-evaluation
+                # next cycle. Telemetry still records the skip so the
+                # frozen-loop monitor isn't blind to a "pool full of
+                # off-universe entries" failure mode.
+                skipped_ids.append(h.id)
+                continue
+
+            h.status = HypothesisStatus.TESTING
+            self._save_obj("hypotheses", h.id, h.model_dump())
+            current.append(h)
+            promoted_ids.append(h.id)
+
+        if candidates:  # always emit when the pool was non-empty
+            self._log_methodology({
+                "phase": "auto_top_up",
+                "promoted_from_formulated": promoted_ids,
+                "marked_infeasible": infeasible_ids,
+                "skipped_not_promotable": skipped_ids,
+                "pool_size": len(candidates),
+                "current_size": len(current),
+            })
+            self._emit_telemetry(
+                "cycle.top_up",
+                details={
+                    "promoted": len(promoted_ids),
+                    "infeasible": len(infeasible_ids),
+                    "skipped_not_promotable": len(skipped_ids),
+                    "pool_size": len(candidates),
+                    "current_size": len(current),
+                },
+            )
+        return current
 
     def _find_active_cycle(self, hypothesis_id: str) -> ResearchCycle | None:
         """Find an active cycle for a hypothesis."""
@@ -910,6 +1090,23 @@ class AutonomousRunner:
 
         # Phase 2: Generate hypotheses (with durable IDs and Bonferroni correction)
         hypotheses = self.generate_hypotheses(signal_results)
+
+        # Phase 2b: Top up from FORMULATED pool when signal-driven generation
+        # under-fills the cycle. Per principal decision A+C+D2 (handoff
+        # atlas-pool-rotation-decision.md, 2026-05-01): keep the loop from
+        # silently starving when current signal scans don't re-fire prior
+        # hypotheses. STRICT-D2 marks data-unavailable hypotheses INFEASIBLE
+        # so they don't repeatedly block the auto-top-up.
+        hypotheses = self._top_up_from_formulated_pool(hypotheses)
+
+        # Recompute Bonferroni adjustment now that the cycle's test set is
+        # finalized — generate_hypotheses stamped its own n_tests, but the
+        # top-up may have added more, which would understate the
+        # multiple-testing burden.
+        n_tests = max(1, len(hypotheses))
+        for h in hypotheses:
+            h._bonferroni_n = n_tests  # type: ignore[attr-defined]
+
         cycle_report["hypotheses_generated"] = len(hypotheses)
 
         if not hypotheses:

@@ -14,6 +14,7 @@ class HypothesisStatus(str, Enum):
     SUPPORTED = "supported"
     FALSIFIED = "falsified"
     PROMOTED = "promoted"
+    INFEASIBLE = "infeasible"
 
 
 class Hypothesis(BaseModel):
