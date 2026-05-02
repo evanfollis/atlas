@@ -2,12 +2,12 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-05-01 — A+C+D2 pool-rotation shipped per principal authorization (`atlas-pool-rotation-decision.md`: A+C+D2). INFEASIBLE status added; auto-top-up promotes feasible FORMULATED → TESTING; 2 stuck BitMEX hypotheses migrated to INFEASIBLE. STRICT semantics with adversarial-review fix: claim-level infeasibility (geo-blocked exchange) is one-way; environmental constraints (off-universe, insufficient bars) leave hypothesis FORMULATED for future re-evaluation. 21 new tests, 151 total pass.
+**Last updated**: 2026-05-02 — S3-P2 frozen-loop gate rewritten as rotation-safe persistent counter (commit 39b6d2f). Code landed; **NOT YET DEPLOYED** (service restart requires sudo — credential blocker). Gate re-arms automatically after 3 new empty cycles (~3h post-deploy). 156 tests pass.
 
 ---
 
@@ -20,6 +20,14 @@ updated: 2026-05-01
 - **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`, `.canon/`.
 
 ## What just shipped
+- **S3-P2 rotation-safe counter (2026-05-02, commit 39b6d2f) — PUSHED, code_landed_NOT_deployed**:
+  - **Root cause fixed**: `_read_recent_runner_events()` removed entirely. After midnight UTC rotation, the Apr 29 kill event was only visible in a gzip archive; `broken_since_last` found no kill and suppressed the gate indefinitely on what were genuinely new post-kill empty cycles.
+  - **Fix**: persistent `consecutive_empty_count` in `.atlas/escalation_state.json`. `_update_streak_counter()` increments on every empty/all-continue cycle, resets to 0 on any decisive cycle (kill/promote/pivot). `_maybe_escalate_frozen_loop` reads only the state file — midnight rotation cannot affect it.
+  - **Migration**: old state file format (`last_streak_start_ts`/`last_emitted_ts`) has no recognized new fields → `_load_escalation_state` returns `{}` → counter starts at 0 → gate re-arms after 3 new empty cycles (~3h at hourly cadence).
+  - **Tests**: 5 new unit tests for `_update_streak_counter` + regression `test_rotation_proof_counter_persists_across_events_wipe`. 24/24 gate tests pass, 156/156 total.
+  - **CLAUDE.md**: P2 rule added — `_maybe_escalate_frozen_loop` requires `adversarial-review.sh` before any commit (7 bug classes, 6 commits). Rule and code land in same commit (39b6d2f).
+  - **Review gap**: Codex unavailable; `adversarial-review.sh` blocked; `advisor()` consulted as fallback. Disclosed explicitly in commit message.
+  - **Delivery state**: `code_landed`. Requires `sudo systemctl restart atlas-runner.service` to deploy. Command blocked by session permissions — escalated to general session.
 - **A+C+D2 pool-rotation (2026-05-01)** — principal-authorized via `atlas-pool-rotation-decision.md`. Closes the 90+h frozen-loop blocker:
   - **A (auto-top-up)**: `runner.py::_top_up_from_formulated_pool` promotes feasible FORMULATED hypotheses to TESTING when `generate_hypotheses` under-fills the cycle. Single code path; A and D2 are the same operation viewed from two symptoms.
   - **C (BitMEX migration)**: `10dc7fca3973e82a` and `4fdf3a65763ab083` migrated to status=INFEASIBLE via inline state-store edit. They no longer occupy slots in the loop's selection or block evaluation.
@@ -42,9 +50,9 @@ updated: 2026-05-01
 ## Known broken or degraded
 
 - ~~**RUNNER STUCK — two independent blockers**~~ — **RESOLVED 2026-05-01 via A+C+D2 deploy** (see "What just shipped"). (1) Two BitMEX hypotheses migrated to INFEASIBLE; (2) signal-hash-drift bypassed by auto-top-up promoting FORMULATED hypotheses directly when signal scan under-fills the cycle. Pool will deplete fast under STRICT-D2 (parameter drift means promoted hypotheses are likely to falsify) — that is the expected and desired behavior; new signal scans plus the existing graph-gap generator are responsible for replenishing the pool. Watch `cycle.top_up` telemetry to confirm replenishment cadence.
-- **S3-P2 gate silently broken — ROOT CAUSE CONFIRMED (2026-05-01T14:22Z)**: Gate fires correctly when the streak is new. The bug: `_read_recent_runner_events()` (`runner.py:1094`) reads only the current `events.jsonl`; it cannot see events in midnight-rotation archives. The Apr 29 23:45Z kill (which broke the Apr 27 streak) rotated out of `events.jsonl` at midnight May 1. Gate's `broken_since_last` check sees no kill since Apr 27 23:31Z → suppresses. Current empty cycles (14 on May 1) are a new post-kill streak, but appear to the gate as a continuation. **Fix**: replace scan-based `broken_since_last` with a persistent `consecutive_empty_count` counter in `.atlas/escalation_state.json`; increment on empty/continue cycles, reset on kill/promote/pivot. `adversarial-review.sh` required before any commit. Evidence: `runner.py:1248–1261` (broken_since_last logic) + 14 consecutive empty cycles in events.jsonl (00:33–13:37Z May 1) + state file unchanged at Apr 27 23:31Z.
+- **S3-P2 gate — FIXED in 39b6d2f, code_landed_NOT_deployed**: Counter-based gate shipped. Running service still has the old scan-based implementation. Requires `sudo systemctl restart atlas-runner.service` to go live. See "What just shipped" for full details. **Action required**: `sudo systemctl restart atlas-runner.service` (general session or principal). Once deployed, the gate re-arms after ~3h.
 - ~~**Runner selects `formulated` hypotheses; `status=testing` never set on selection**~~ — **RESOLVED 2026-05-01**: `_top_up_from_formulated_pool` now sets `status=TESTING` explicitly when promoting from the FORMULATED pool. BitMEX orphans migrated to INFEASIBLE.
-- **Test count** — 130 after 9708867 (+2 tests for gate semantics). `.venv/bin/python -m pytest --collect-only -q` to verify.
+- **Test count** — 156 after 39b6d2f (S3-P2 counter tests). `.venv/bin/python -m pytest --collect-only -q` to verify.
 - ~~**State file timestamp anomaly**~~ — **Resolved 2026-04-27T17:00Z**: my original seed had a 14-hour math error (used 07:30Z when I claimed 21:30Z). Re-seeded with verified values from the 04-27 02:36:44Z emission visible in current events.jsonl: `{"last_streak_start_ts": 1777250052457, "last_emitted_ts": 1777257404561}`. Gate is now correctly anchored.
 - **Concurrent runner safety** (known soft edge, not URGENT): `_maybe_escalate_frozen_loop` read-check-write is not atomic. A parallel `atlas run --once` debug session running alongside the live service could double-emit. Worst case is 2 telemetry events + 1 URGENT file (handoff dedup wins eventually). flock would close it; tracked but deferred per the 17:00Z review.
 - **Cache-vs-gate misalignment** (open, principal-class): `DATASET_RETEST_AFTER = 1 day` and `FROZEN_LOOP_ESCALATION_AFTER = 3 cycles` interact such that the gate fires roughly once per 24h between productive cycles. The gate firing is correct epistemic signal (the loop genuinely cannot promote during the cache window), but produces a recurring URGENT. Tuning options A–D documented in `general-atlas-frozen-loop-diagnosis-2026-04-25T21-40Z.md`. No code change without principal direction. Confirmed cadence via 04-26 18:14Z kill (evidence 153→163) → 21:30Z escalation (3-cycle new streak); the dedup-fixed gate is working precisely as documented.
@@ -169,7 +177,6 @@ Session c5472d70 (Opus 4.7) resolved all 4 pending handoffs and closed both URGE
 - **Default exchange is Bitstamp (2026-04-19)**: Kraken caps OHLCV at ~720 bars regardless of `since` — below the 833-bar walk-forward minimum. Bitstamp provides 99K+ 1h bars via pagination.
 
 ## What the next agent must read first
-1. **S3-P2 gate — root cause confirmed, fix ready (2026-05-01T14:22Z)**: `_maybe_escalate_frozen_loop` suppresses because `_read_recent_runner_events()` reads only current `events.jsonl`; the Apr 29 kill is in the archive and invisible. Gate sees no kill since Apr 27, concludes same streak, suppresses. Fix: persistent `consecutive_empty_count` in `.atlas/escalation_state.json` (see reflection `atlas-reflection-2026-05-01T14-22-05Z.md` P1). Do NOT implement without `adversarial-review.sh` first. See `runner.py:1094` and `runner.py:1248–1261`.
-2. **RUNNER FROZEN — authorization DEADLINE PASSED (~17:00Z May 1)**: Two blockers (BitMEX data + signal-hash-drift). V2 decision handoff (`general-atlas-pool-rotation-v2-with-signal-drift-2026-04-30T17-00Z.md`) consumed by general at 16:54Z Apr 30; no authorization reply. 24h dispatch deadline was ~17:00Z May 1. Do NOT implement A/B/C/D without principal authorization. This is now FR-class per workspace dispatch obligation.
-3. **Test baseline**: 130 tests. Verify with `.venv/bin/python -m pytest` before any commit.
-4. **Migration merge-collapse** (4th carry-forward): `scripts/migrate_claim_hash.py` merge path discards non-claim fields. `--allow-merge` gate aborts on detection but merge-allowed behavior is untested. Add fixture with differing `rationale` fields.
+1. **DEPLOY NEEDED — S3-P2 counter gate (39b6d2f, 2026-05-02T02:10Z)**: Code landed. Running service still has the old broken scan-based gate. `sudo systemctl restart atlas-runner.service` required. Session permissions blocked the tick from deploying. Gate re-arms after ~3h once deployed. Credential blocker: sudo access.
+2. **Test baseline**: 156 tests. Verify with `.venv/bin/python -m pytest` before any commit.
+3. **Migration merge-collapse** (4th carry-forward): `scripts/migrate_claim_hash.py` merge path discards non-claim fields. `--allow-merge` gate aborts on detection but merge-allowed behavior is untested. Add fixture with differing `rationale` fields.
