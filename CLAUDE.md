@@ -19,6 +19,7 @@ Autonomous research system that uses the scientific method to build causal graph
 ### How to Work in This Repo
 - **Use `/review` after every significant feature, refactor, or architectural change.** Route to Codex for adversarial pressure testing. This is mandatory, not optional.
 - **Use `/review` periodically on research methodology.** The system's hypothesis generation and statistical methods are as important to pressure-test as the code.
+- **`_maybe_escalate_frozen_loop` (S3-P2) must not be committed without `adversarial-review.sh` first.** This method has accumulated 7 bug classes across 6 commits. No exceptions — not even when Codex is unavailable (use `advisor()` as fallback and disclose the gap explicitly in the commit message).
 - **Pre-registered fields are immutable.** Hypothesis claims, falsification criteria, significance thresholds, and experiment parameters cannot change after creation. This is enforced in code.
 - **Statistical claims must be honest.** Never claim a test adjusts for something it doesn't. If a test assumes iid/normal returns and crypto returns aren't, say so explicitly.
 - **The causal graph earns its name or loses it.** Edges must represent tested causal claims, not correlations. If we can't justify causality, call it a dependency graph. Don't let branding outrun implementation.

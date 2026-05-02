@@ -94,22 +94,11 @@ def runner_with_telemetry(tmp_path: Path, monkeypatch) -> AutonomousRunner:
     return r
 
 
-def _write_cycle_events(runner: AutonomousRunner, decisions_list: list[dict]):
-    """Append a fake cycle.completed for each entry to the runner's
-    telemetry path. Each entry: {evaluated:int, kinds:dict, ts:int}."""
-    with open(runner.TELEMETRY_PATH, "a") as f:
-        for entry in decisions_list:
-            f.write(json.dumps({
-                "project": "atlas",
-                "source": "atlas.runner",
-                "eventType": "cycle.completed",
-                "timestamp": entry["ts"],
-                "details": {
-                    "hypotheses_evaluated": entry["evaluated"],
-                    "decisions_by_kind": entry["kinds"],
-                    "total_evidence_store_size": entry.get("evidence", 0),
-                },
-            }) + "\n")
+def _simulate_cycles(runner: AutonomousRunner, decisions_list: list[dict]) -> None:
+    """Call _update_streak_counter once per entry to simulate cycle outcomes.
+    Each entry is a decisions_by_kind dict (e.g. {"continue": 5} or {})."""
+    for decisions in decisions_list:
+        runner._update_streak_counter(decisions)
 
 
 def _read_runner_event_types(runner: AutonomousRunner) -> list[str]:
@@ -133,11 +122,7 @@ def _all_runner_events(runner: AutonomousRunner) -> list[dict]:
 
 def test_escalation_fires_after_threshold(runner_with_telemetry):
     r = runner_with_telemetry
-    _write_cycle_events(r, [
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 1000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 2000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
-    ])
+    _simulate_cycles(r, [{"continue": 5}, {"continue": 5}, {"continue": 5}])
     r._maybe_escalate_frozen_loop()
     types = _read_runner_event_types(r)
     assert types.count("cycle.escalated") == 1
@@ -147,11 +132,7 @@ def test_escalation_fires_after_threshold(runner_with_telemetry):
 
 def test_escalation_idempotent_on_same_streak(runner_with_telemetry):
     r = runner_with_telemetry
-    _write_cycle_events(r, [
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 1000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 2000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
-    ])
+    _simulate_cycles(r, [{"continue": 5}, {"continue": 5}, {"continue": 5}])
     r._maybe_escalate_frozen_loop()
     r._maybe_escalate_frozen_loop()  # second call must not re-emit
     types = _read_runner_event_types(r)
@@ -164,38 +145,26 @@ def test_escalation_idempotent_on_same_streak(runner_with_telemetry):
 def test_escalation_idempotent_when_streak_grows_past_threshold(runner_with_telemetry):
     """Regression for the 2026-04-26 02:37 false-re-emit:
     once the all-continue streak passes the threshold, additional
-    same-streak cycles must NOT trigger a second cycle.escalated. The
-    bug was that walk-back stopped at FROZEN_LOOP_ESCALATION_AFTER, so
-    `streak_start_ts` shifted forward as cycles accumulated and
-    eventually outpaced the previous escalation's timestamp, defeating
-    the dedup check."""
+    same-streak cycles must NOT trigger a second cycle.escalated."""
     r = runner_with_telemetry
-    _write_cycle_events(r, [
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 1000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 2000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
-    ])
+    _simulate_cycles(r, [{"continue": 5}, {"continue": 5}, {"continue": 5}])
     r._maybe_escalate_frozen_loop()  # streak hits threshold → 1 emission
 
-    # Now the streak grows by 3 more all-continue cycles (no break).
-    _write_cycle_events(r, [
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 4000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 5000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 6000},
-    ])
+    # Streak grows past threshold — no break, no re-emit.
+    _simulate_cycles(r, [{"continue": 5}, {"continue": 5}, {"continue": 5}])
     r._maybe_escalate_frozen_loop()  # same streak — must NOT re-emit
 
     types = _read_runner_event_types(r)
     assert types.count("cycle.escalated") == 1, (
-        "gate re-fired on a streak that never broke — dedup walks the wrong window"
+        "gate re-fired on a streak that never broke"
     )
     handoffs = list(r.HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
     assert len(handoffs) == 1
 
 
 def test_state_file_corruption_falls_back_to_empty(runner_with_telemetry, tmp_path):
-    """Corrupt / wrong-shape state file (string, list, null, non-int values)
-    must not poison the gate — `_load_escalation_state` returns {}."""
+    """Corrupt / wrong-shape state file must not poison the gate —
+    `_load_escalation_state` returns {} for any parse failure."""
     r = runner_with_telemetry
     state_path = r._escalation_state_path()
     state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -206,56 +175,53 @@ def test_state_file_corruption_falls_back_to_empty(runner_with_telemetry, tmp_pa
     state_path.write_text(json.dumps([1, 2, 3]))
     assert r._load_escalation_state() == {}
 
-    state_path.write_text(json.dumps({"last_emitted_ts": "not-an-int"}))
+    state_path.write_text(json.dumps({"consecutive_empty_count": "not-an-int"}))
     assert r._load_escalation_state() == {}
 
-    state_path.write_text(json.dumps({"last_emitted_ts": None}))
+    state_path.write_text(json.dumps({"consecutive_empty_count": None}))
     assert r._load_escalation_state() == {}
 
-    state_path.write_text(json.dumps({"last_streak_start_ts": 12345}))
-    assert r._load_escalation_state() == {"last_streak_start_ts": 12345}
+    state_path.write_text(json.dumps({"consecutive_empty_count": 5}))
+    assert r._load_escalation_state() == {"consecutive_empty_count": 5}
 
 
 def test_dedup_suppresses_after_midnight_rotation_when_no_break_visible(runner_with_telemetry):
-    """Regression for the 2026-04-28 02:35Z false-positive:
-    after midnight UTC telemetry rotation, every visible event is younger
-    than `last_emitted_ts`. The gate must NOT treat this as "uncovered →
-    fail-open" because that produces one false-positive per day. If all
-    visible cycles are continue, suppress; if any visible cycle is non-
-    continue, that visible kill is sufficient to detect the new streak."""
+    """Regression for the 2026-04-28 rotation-induced false-positive:
+    once a streak is marked emitted, additional all-continue cycles must
+    not re-trigger the gate even if the telemetry log rotates and the
+    prior emission event disappears. The persistent emitted_for_current_streak
+    flag is the source of truth — the gate never reads events.jsonl."""
     r = runner_with_telemetry
-    # Seed state with an older timestamp than any visible event (mimics the
-    # post-rotation case where last_emitted_ts is from yesterday).
-    r._save_escalation_state(streak_start_ts=100, emitted_ts=200)
+    # Build a 3-cycle streak and fire the gate.
+    _simulate_cycles(r, [{"continue": 5}, {"continue": 5}, {"continue": 5}])
+    r._maybe_escalate_frozen_loop()  # fires; emitted_for_current_streak → True
 
-    # All visible events are AFTER last_emitted_ts AND all-continue.
-    _write_cycle_events(r, [
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 1000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 2000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
-    ])
-    r._maybe_escalate_frozen_loop()
+    # Simulate midnight rotation: wipe events.jsonl. Counter-based gate is unaffected.
+    r.TELEMETRY_PATH.write_text("")
+
+    # Three more all-continue cycles — same streak, counter keeps incrementing.
+    _simulate_cycles(r, [{"continue": 5}, {"continue": 5}, {"continue": 5}])
+    r._maybe_escalate_frozen_loop()  # same streak — must NOT re-emit
+
+    # No cycle.escalated in the post-wipe file (second call suppressed correctly).
     types = _read_runner_event_types(r)
     assert types.count("cycle.escalated") == 0
 
 
 def test_visible_kill_after_old_emission_triggers_re_emit(runner_with_telemetry):
-    """If `last_emitted_ts` is older than the visible window AND a kill
-    cycle.completed is in the visible window, the gate correctly detects a
-    new streak after the visible kill. The 5000-event read window covers
-    >25 days so the only loss case is rotation of a kill so old that the
-    operator should have noticed silence anyway."""
+    """A kill cycle resets the streak counter; a new all-continue streak
+    after the kill must trigger a second escalation."""
     r = runner_with_telemetry
-    r._save_escalation_state(streak_start_ts=100, emitted_ts=200)
-    _write_cycle_events(r, [
-        {"evaluated": 5, "kinds": {"kill": 5}, "ts": 1000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 2000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 4000},
-    ])
+    # First streak fires the gate.
+    _simulate_cycles(r, [{"continue": 5}, {"continue": 5}, {"continue": 5}])
+    r._maybe_escalate_frozen_loop()
+    assert _read_runner_event_types(r).count("cycle.escalated") == 1
+
+    # Kill breaks the streak, then a new 3-cycle streak forms.
+    _simulate_cycles(r, [{"kill": 5}, {"continue": 5}, {"continue": 5}, {"continue": 5}])
     r._maybe_escalate_frozen_loop()
     types = _read_runner_event_types(r)
-    assert types.count("cycle.escalated") == 1
+    assert types.count("cycle.escalated") == 2
 
 
 def test_escalation_idempotent_across_telemetry_rotation(runner_with_telemetry):
@@ -265,64 +231,37 @@ def test_escalation_idempotent_across_telemetry_rotation(runner_with_telemetry):
     NOT cause the gate to re-emit. State persists in
     .atlas/escalation_state.json, not in the rotated telemetry."""
     r = runner_with_telemetry
-    _write_cycle_events(r, [
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 1000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 2000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
-    ])
+    _simulate_cycles(r, [{"continue": 5}, {"continue": 5}, {"continue": 5}])
     r._maybe_escalate_frozen_loop()  # 1st emission, state file written
 
-    # Simulate telemetry rotation: events.jsonl is truncated. The previous
-    # cycle.escalated event is gone; only the post-rotation cycle.completed
-    # events remain.
+    # Simulate telemetry rotation: wipe events.jsonl.
     r.TELEMETRY_PATH.write_text("")
-    _write_cycle_events(r, [
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 4000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 5000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 6000},
-    ])
+
+    # 3 more all-continue cycles — same streak.
+    _simulate_cycles(r, [{"continue": 5}, {"continue": 5}, {"continue": 5}])
     r._maybe_escalate_frozen_loop()  # same logical streak — must NOT re-emit
 
+    # No cycle.escalated in the post-rotation file.
     types = _read_runner_event_types(r)
     assert types.count("cycle.escalated") == 0, (
         "cycle.escalated event in *post-rotation* file means the gate re-fired "
         "after rotation hid the prior emission"
     )
-    # The handoff was written by the FIRST call; dedup glob in
-    # _write_frozen_loop_handoff prevents a second one.
     handoffs = list(r.HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
     assert len(handoffs) == 1
 
 
 def test_escalation_re_fires_after_streak_breaks_then_reforms(runner_with_telemetry):
-    """Sanity check: a kill cycle resets the streak; a new 3-cycle
-    all-continue run AFTER that kill (with timestamps > the prior escalation)
-    must trigger a SECOND escalation. Uses wall-clock-scale timestamps so
-    the dedup compares apples-to-apples with the real escalation emit time."""
-    import time
+    """Sanity check: a kill cycle resets the counter; a new 3-cycle
+    all-continue run AFTER that kill must trigger a SECOND escalation."""
     r = runner_with_telemetry
-    base = int(time.time() * 1000)  # current wall clock ms
-    _write_cycle_events(r, [
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": base + 1000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": base + 2000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": base + 3000},
-    ])
+    _simulate_cycles(r, [{"continue": 5}, {"continue": 5}, {"continue": 5}])
     r._maybe_escalate_frozen_loop()  # 1st emission
 
-    # Read back the actual escalation timestamp so the second streak's
-    # cycles can be placed AFTER it (mimicking real production timing).
-    first_escalated_ts = max(
-        e["timestamp"] for e in _all_runner_events(r)
-        if e["eventType"] == "cycle.escalated"
-    )
-
-    # Streak break: a kill cycle, then a new all-continue streak forms.
-    # All these timestamps are AFTER the first escalation emit.
-    _write_cycle_events(r, [
-        {"evaluated": 5, "kinds": {"kill": 5}, "ts": first_escalated_ts + 1000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": first_escalated_ts + 2000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": first_escalated_ts + 3000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": first_escalated_ts + 4000},
+    # Kill breaks the streak, then a new streak forms.
+    _simulate_cycles(r, [
+        {"kill": 5},
+        {"continue": 5}, {"continue": 5}, {"continue": 5},
     ])
     r._maybe_escalate_frozen_loop()  # NEW streak → SHOULD re-emit
 
@@ -332,10 +271,10 @@ def test_escalation_re_fires_after_streak_breaks_then_reforms(runner_with_teleme
 
 def test_escalation_skipped_when_kill_within_window(runner_with_telemetry):
     r = runner_with_telemetry
-    _write_cycle_events(r, [
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 1000},
-        {"evaluated": 5, "kinds": {"kill": 1, "continue": 4}, "ts": 2000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
+    _simulate_cycles(r, [
+        {"continue": 5},
+        {"kill": 1, "continue": 4},  # mixed: decisive → resets counter
+        {"continue": 5},
     ])
     r._maybe_escalate_frozen_loop()
     types = _read_runner_event_types(r)
@@ -350,11 +289,7 @@ def test_empty_cycles_count_as_stuck(runner_with_telemetry):
     evidence and no decisions. Three consecutive empty cycles must trigger
     the gate."""
     r = runner_with_telemetry
-    _write_cycle_events(r, [
-        {"evaluated": 0, "kinds": {}, "ts": 1000},
-        {"evaluated": 0, "kinds": {}, "ts": 2000},
-        {"evaluated": 0, "kinds": {}, "ts": 3000},
-    ])
+    _simulate_cycles(r, [{}, {}, {}])  # empty cycles
     r._maybe_escalate_frozen_loop()
     types = _read_runner_event_types(r)
     assert types.count("cycle.escalated") == 1
@@ -365,11 +300,7 @@ def test_mixed_empty_and_all_continue_cycles_form_streak(runner_with_telemetry):
     are 'no kill/promote/pivot was produced' and must be treated as one
     contiguous streak."""
     r = runner_with_telemetry
-    _write_cycle_events(r, [
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 1000},
-        {"evaluated": 0, "kinds": {}, "ts": 2000},
-        {"evaluated": 5, "kinds": {"continue": 5}, "ts": 3000},
-    ])
+    _simulate_cycles(r, [{"continue": 5}, {}, {"continue": 5}])
     r._maybe_escalate_frozen_loop()
     types = _read_runner_event_types(r)
     assert types.count("cycle.escalated") == 1
@@ -378,12 +309,7 @@ def test_mixed_empty_and_all_continue_cycles_form_streak(runner_with_telemetry):
 def test_kill_breaks_a_streak_of_empty_cycles(runner_with_telemetry):
     """A real kill must still reset a streak even if surrounded by empty cycles."""
     r = runner_with_telemetry
-    _write_cycle_events(r, [
-        {"evaluated": 0, "kinds": {}, "ts": 1000},
-        {"evaluated": 5, "kinds": {"kill": 5}, "ts": 2000},
-        {"evaluated": 0, "kinds": {}, "ts": 3000},
-        {"evaluated": 0, "kinds": {}, "ts": 4000},
-    ])
+    _simulate_cycles(r, [{}, {"kill": 5}, {}, {}])
     r._maybe_escalate_frozen_loop()
     types = _read_runner_event_types(r)
     # Streak (after kill) = 2 empties → below threshold of 3
@@ -394,6 +320,67 @@ def test_escalation_threshold_constant_matches_workspace_rule():
     """Workspace CLAUDE.md S3-P2 sets the threshold to 3 consecutive
     same-reason skips. Drift here would silently weaken the gate."""
     assert FROZEN_LOOP_ESCALATION_AFTER == 3
+
+
+def test_update_streak_counter_increments_on_empty(runner_with_telemetry):
+    r = runner_with_telemetry
+    r._update_streak_counter({})
+    assert r._load_escalation_state().get("consecutive_empty_count") == 1
+    r._update_streak_counter({})
+    assert r._load_escalation_state().get("consecutive_empty_count") == 2
+
+
+def test_update_streak_counter_increments_on_all_continue(runner_with_telemetry):
+    r = runner_with_telemetry
+    r._update_streak_counter({"continue": 5})
+    r._update_streak_counter({"continue": 3})
+    assert r._load_escalation_state().get("consecutive_empty_count") == 2
+
+
+def test_update_streak_counter_resets_on_kill(runner_with_telemetry):
+    r = runner_with_telemetry
+    r._update_streak_counter({})
+    r._update_streak_counter({})
+    r._update_streak_counter({})
+    assert r._load_escalation_state().get("consecutive_empty_count") == 3
+    r._update_streak_counter({"kill": 2})
+    state = r._load_escalation_state()
+    assert state.get("consecutive_empty_count") == 0
+    assert state.get("emitted_for_current_streak") is False
+
+
+def test_update_streak_counter_resets_on_promote(runner_with_telemetry):
+    r = runner_with_telemetry
+    r._update_streak_counter({"continue": 5})
+    r._update_streak_counter({"promote": 1, "continue": 4})
+    state = r._load_escalation_state()
+    assert state.get("consecutive_empty_count") == 0
+    assert state.get("emitted_for_current_streak") is False
+
+
+def test_rotation_proof_counter_persists_across_events_wipe(runner_with_telemetry):
+    """Regression for the 2026-04-27/28 rotation bugs (now eliminated):
+    the counter-based gate must not depend on events.jsonl at all. Wiping
+    events.jsonl while a streak is in progress must not affect the counter
+    or the emitted flag.
+
+    Scenario: 3 empties → gate fires → wipe events.jsonl → 0 new cycles →
+    gate stays silent (emitted_for_current_streak=True in state file)."""
+    r = runner_with_telemetry
+    _simulate_cycles(r, [{}, {}, {}])
+    r._maybe_escalate_frozen_loop()  # fires
+
+    state = r._load_escalation_state()
+    assert state.get("emitted_for_current_streak") is True
+    assert state.get("consecutive_empty_count", 0) >= 3
+
+    # Wipe events.jsonl (simulate midnight rotation).
+    r.TELEMETRY_PATH.write_text("")
+
+    # Gate must not re-fire.
+    r._maybe_escalate_frozen_loop()
+    types = _read_runner_event_types(r)
+    assert types.count("cycle.escalated") == 0
 
 
 # --------------------------------------------------------------------------

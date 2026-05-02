@@ -1130,6 +1130,10 @@ class AutonomousRunner:
                 },
             )
             try:
+                self._update_streak_counter({})
+            except Exception as exc:
+                log.warning("Streak counter update failed: %s", exc)
+            try:
                 self._maybe_escalate_frozen_loop()
             except Exception as exc:
                 log.warning("Frozen-loop escalation check failed: %s", exc)
@@ -1268,6 +1272,10 @@ class AutonomousRunner:
         # all-continue (no kills, promotions, or pivots), the loop is producing
         # no epistemic state and the silent-monitor failure mode applies.
         try:
+            self._update_streak_counter(decisions_by_kind)
+        except Exception as exc:
+            log.warning("Streak counter update failed: %s", exc)
+        try:
             self._maybe_escalate_frozen_loop()
         except Exception as exc:  # never let escalation crash a cycle
             log.warning("Frozen-loop escalation check failed: %s", exc)
@@ -1281,36 +1289,6 @@ class AutonomousRunner:
     TELEMETRY_PATH = Path("/opt/workspace/runtime/.telemetry/events.jsonl")
     HANDOFF_DIR = Path("/opt/workspace/runtime/.handoff")
 
-    # max_events sized for ~5000 atlas.runner events ≈ 600 hours of cycles
-    # at ~8 events/cycle. The dedup check at `_maybe_escalate_frozen_loop`
-    # requires the window to cover everything since `last_emitted_ts`; the
-    # window is bounded but big enough that exceeding it is itself a signal
-    # the loop is in a wildly unexpected state.
-    READ_WINDOW_MAX_EVENTS = 5000
-
-    def _read_recent_runner_events(self, max_events: int | None = None) -> list[dict]:
-        """Return the most recent atlas.runner events from the workspace
-        telemetry stream. Reads the file once; cheap enough for a per-cycle
-        check at our cadence."""
-        if max_events is None:
-            max_events = self.READ_WINDOW_MAX_EVENTS
-        path = self.TELEMETRY_PATH
-        if not path.exists():
-            return []
-        events: list[dict] = []
-        with open(path) as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    e = json.loads(line)
-                except Exception:
-                    continue
-                if e.get("source") == "atlas.runner":
-                    events.append(e)
-        return events[-max_events:]
-
     def _escalation_state_path(self) -> Path:
         """Authoritative dedup state for the frozen-loop gate. Lives under
         .atlas/ so it survives both runner restart and telemetry rotation.
@@ -1323,10 +1301,17 @@ class AutonomousRunner:
         return self.base_dir / ".atlas" / "escalation_state.json"
 
     def _load_escalation_state(self) -> dict:
-        """Return the dedup state, validated. A malformed file (anything but
-        a JSON object whose `last_streak_start_ts` and `last_emitted_ts`
-        coerce to int) is treated as empty so the gate fails-open rather
-        than going silent on a string/null/array/future-dated value.
+        """Return the persistent streak state, validated.
+
+        Recognized fields:
+          consecutive_empty_count  int    — live streak length; null/bad → fail-open
+          streak_start_ts          int|None — when the current streak started
+          emitted_for_current_streak bool — True once the gate has fired this streak
+          last_emitted_ts          int    — epoch-ms of the last emission (display only)
+
+        A malformed file is treated as empty (fail-open = counter resets to 0,
+        not-emitted) so the gate re-arms after 3 new cycles rather than going
+        silently dark.
         """
         path = self._escalation_state_path()
         if not path.exists():
@@ -1340,143 +1325,136 @@ class AutonomousRunner:
             log.warning("Escalation state %s is not a dict; ignoring", path)
             return {}
         out: dict = {}
-        for key in ("last_streak_start_ts", "last_emitted_ts"):
-            if key in raw:
+        # consecutive_empty_count: int; null or non-int → fail-open
+        if "consecutive_empty_count" in raw:
+            val = raw["consecutive_empty_count"]
+            try:
+                out["consecutive_empty_count"] = int(val)
+            except (TypeError, ValueError):
+                log.warning(
+                    "Escalation state %s has non-int consecutive_empty_count=%r; ignoring",
+                    path, val,
+                )
+                return {}
+        # streak_start_ts: int or None (null = counter is at 0 / not started)
+        if "streak_start_ts" in raw:
+            val = raw["streak_start_ts"]
+            if val is None:
+                out["streak_start_ts"] = None
+            else:
                 try:
-                    out[key] = int(raw[key])
+                    out["streak_start_ts"] = int(val)
                 except (TypeError, ValueError):
                     log.warning(
-                        "Escalation state %s has non-int %s=%r; ignoring",
-                        path, key, raw[key],
+                        "Escalation state %s has non-int streak_start_ts=%r; ignoring",
+                        path, val,
                     )
                     return {}
+        # emitted_for_current_streak: bool; corrupt value → default False
+        if "emitted_for_current_streak" in raw:
+            val = raw["emitted_for_current_streak"]
+            if isinstance(val, bool):
+                out["emitted_for_current_streak"] = val
+            elif val in (0, 1):
+                out["emitted_for_current_streak"] = bool(val)
+            else:
+                out["emitted_for_current_streak"] = False
         return out
 
-    def _save_escalation_state(self, streak_start_ts: int, emitted_ts: int) -> None:
+    def _persist_escalation_state(self, state: dict) -> None:
+        """Atomic write of the escalation state dict."""
         path = self._escalation_state_path()
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             tmp = path.with_suffix(path.suffix + ".tmp")
-            tmp.write_text(json.dumps({
-                "last_streak_start_ts": streak_start_ts,
-                "last_emitted_ts": emitted_ts,
-            }))
+            tmp.write_text(json.dumps(state))
             tmp.replace(path)
         except Exception as exc:
             log.warning("Failed to write escalation state %s: %s", path, exc)
 
-    def _maybe_escalate_frozen_loop(self) -> None:
-        """Emit a `cycle.escalated` event and write an URGENT handoff if the
-        last `FROZEN_LOOP_ESCALATION_AFTER` cycle.completed events were all
-        all-continue (and we have not already escalated this streak).
-
-        Vacuous cycles (no hypotheses evaluated) are skipped — they neither
-        contribute to nor break the streak. Idempotency uses the TRUE streak
-        start (walks back through every consecutive all-continue cycle, not
-        just the threshold-many newest), so a streak that grows past N does
-        not re-emit just because the threshold-window's start has shifted.
-        Dedup is persisted to `.atlas/escalation_state.json` so it survives
-        midnight telemetry rotation that would otherwise hide prior
-        `cycle.escalated` events from the events.jsonl scan.
-        """
-        events = self._read_recent_runner_events()
-        if not events:
-            return
-
-        completed = [e for e in events if e.get("eventType") == "cycle.completed"]
-        if len(completed) < FROZEN_LOOP_ESCALATION_AFTER:
-            return
-
-        # Walk back through every consecutive cycle that produced no
-        # falsifying / promoting / pivoting decision. That includes:
-        #   - all-continue cycles (decisions made, but none decisive)
-        #   - empty cycles (no hypotheses generated; the runner's
-        #     "starving" failure mode discovered 04-30 14:18Z)
-        # The streak breaks only when a kill / promote / pivot appears.
-        # Treating empty cycles as part of the streak (rather than
-        # silently skipping them) is what makes the gate visible to the
-        # starving-loop pathology.
-        streak: list[dict] = []
-        STUCK_KINDS = frozenset({"continue"})
-        for e in reversed(completed):
-            details = e.get("details", {}) or {}
-            kinds = details.get("decisions_by_kind", {}) or {}
-            kind_set = set(kinds.keys())
-            n = details.get("hypotheses_evaluated", 0)
-            is_empty = n <= 0
-            is_all_continue = (not is_empty) and kind_set <= STUCK_KINDS
-            if is_empty or is_all_continue:
-                streak.append(e)
-            else:
-                break  # any kill / promote / pivot → streak broken
-
-        if len(streak) < FROZEN_LOOP_ESCALATION_AFTER:
-            return
-
-        streak_start_ts = streak[-1].get("timestamp", 0)
-
-        # Idempotent across log rotation: state file persists the last
-        # emission's timestamp. A re-emission only makes sense if the streak
-        # has actually broken since then — i.e., a kill / promote / pivot
-        # cycle.completed has appeared since `last_emitted_ts`. Comparing
-        # streak_start timestamps does NOT survive midnight telemetry
-        # rotation, because the post-rotation events.jsonl no longer contains
-        # the cycles that started the previous streak.
+    def _save_escalation_state(self, streak_start_ts: int, emitted_ts: int) -> None:
+        """Mark the current streak as emitted. Preserves the existing counter."""
         state = self._load_escalation_state()
-        last_emitted_ts = state.get("last_emitted_ts")
-        if last_emitted_ts is not None:
-            # The dedup question is "has any non-continue cycle.completed
-            # appeared since last_emitted_ts?". If yes, the streak broke and
-            # this is a NEW streak — emit. If no, the streak is unchanged —
-            # suppress.
-            #
-            # Coverage caveat: if a kill rotates out of events.jsonl
-            # entirely (would take >5000 atlas.runner events ≈ ~26 days at
-            # the current cadence), we can no longer see it and the gate
-            # may suppress a new streak. That is preferable to firing every
-            # midnight when yesterday's kill rotates out — the prior
-            # fail-open did exactly that and produced one false-positive
-            # URGENT per day. If the gate has been silent for >26 days,
-            # something else has gone very wrong and an operator should
-            # already be looking.
-            # The streak is broken only by an actual kill/promote/pivot.
-            # Continue-only and empty cycles are both "stuck" and DO NOT
-            # break the streak (must agree with the walk-back above).
-            def _broke_streak(d: dict) -> bool:
-                if d.get("hypotheses_evaluated", 0) <= 0:
-                    return False  # empty cycle: still stuck
-                kind_set = set((d.get("decisions_by_kind") or {}).keys())
-                return bool(kind_set - STUCK_KINDS)
+        state.update({
+            "emitted_for_current_streak": True,
+            "last_emitted_ts": emitted_ts,
+            "streak_start_ts": streak_start_ts,
+        })
+        self._persist_escalation_state(state)
 
-            broken_since_last = any(
-                e.get("eventType") == "cycle.completed"
-                and e.get("timestamp", 0) > last_emitted_ts
-                and _broke_streak(e.get("details", {}) or {})
-                for e in events
+    def _update_streak_counter(self, decisions_by_kind: dict) -> None:
+        """Update the persistent consecutive-empty counter from one cycle's outcome.
+
+        Increments on empty cycles (decisions_by_kind == {}) and all-continue
+        cycles (only "continue" keys). Resets to 0 on any decisive outcome
+        (kill / promote / pivot). Called by run_cycle before
+        _maybe_escalate_frozen_loop.
+        """
+        STUCK_KINDS = frozenset({"continue"})
+        kind_set = set(decisions_by_kind.keys())
+        has_decisive = bool(kind_set - STUCK_KINDS)
+
+        state = self._load_escalation_state()
+
+        if has_decisive:
+            new_state: dict = {
+                "consecutive_empty_count": 0,
+                "streak_start_ts": None,
+                "emitted_for_current_streak": False,
+            }
+            if "last_emitted_ts" in state:
+                new_state["last_emitted_ts"] = state["last_emitted_ts"]
+        else:
+            count = state.get("consecutive_empty_count", 0) + 1
+            streak_start_ts = (
+                state.get("streak_start_ts")
+                or int(datetime.now(timezone.utc).timestamp() * 1000)
             )
-            if not broken_since_last:
-                return
+            new_state = {
+                "consecutive_empty_count": count,
+                "streak_start_ts": streak_start_ts,
+                "emitted_for_current_streak": state.get("emitted_for_current_streak", False),
+            }
+            if "last_emitted_ts" in state:
+                new_state["last_emitted_ts"] = state["last_emitted_ts"]
 
+        self._persist_escalation_state(new_state)
+
+    def _maybe_escalate_frozen_loop(self) -> None:
+        """Emit a `cycle.escalated` event and write an URGENT handoff when
+        the persistent consecutive-empty counter reaches FROZEN_LOOP_ESCALATION_AFTER
+        and the current streak has not yet been reported.
+
+        The counter is maintained by `_update_streak_counter`, called from
+        `run_cycle` before this method. Resets to 0 on any kill/promote/pivot.
+        Idempotency is governed by `emitted_for_current_streak` in the state
+        file — rotation-proof because it never reads events.jsonl.
+        """
+        state = self._load_escalation_state()
+        count = state.get("consecutive_empty_count", 0)
+
+        if count < FROZEN_LOOP_ESCALATION_AFTER:
+            return
+
+        if state.get("emitted_for_current_streak", False):
+            return
+
+        streak_start_ts = state.get("streak_start_ts") or 0
         emitted_ts = int(datetime.now(timezone.utc).timestamp() * 1000)
         self._emit_telemetry(
             "cycle.escalated",
             level="warning",
             details={
                 "reason": "frozen_loop_all_continue",
-                "consecutive_cycles": len(streak),
+                "consecutive_cycles": count,
                 "streak_start_ts": streak_start_ts,
-                "decisions_by_kind": (
-                    streak[0].get("details", {}).get("decisions_by_kind", {})
-                ),
-                "total_evidence_store_size": (
-                    streak[0].get("details", {}).get("total_evidence_store_size", 0)
-                ),
+                "total_evidence_store_size": len(self.state.list_all("evidence")),
             },
         )
         self._save_escalation_state(streak_start_ts, emitted_ts)
-        self._write_frozen_loop_handoff(streak)
+        self._write_frozen_loop_handoff(count, streak_start_ts)
 
-    def _write_frozen_loop_handoff(self, streak: list[dict]) -> None:
+    def _write_frozen_loop_handoff(self, consecutive_cycles: int, streak_start_ts: int) -> None:
         """Drop one URGENT handoff to general/atlas describing the streak.
         Dedup by glob — if any URGENT-atlas-frozen-loop-*.md exists, skip."""
         try:
@@ -1486,8 +1464,7 @@ class AutonomousRunner:
                 return
             now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%MZ")
             path = self.HANDOFF_DIR / f"URGENT-atlas-frozen-loop-{now_iso}.md"
-            evidence_size = (streak[0].get("details", {})
-                             .get("total_evidence_store_size", 0))
+            evidence_size = len(self.state.list_all("evidence"))
             body = (
                 "---\n"
                 f"priority: critical\n"
@@ -1496,9 +1473,9 @@ class AutonomousRunner:
                 "to: atlas / general\n"
                 "---\n\n"
                 "# atlas — frozen loop (auto-escalated)\n\n"
-                f"The autonomous loop has produced {len(streak)} consecutive\n"
+                f"The autonomous loop has produced {consecutive_cycles} consecutive\n"
                 "all-continue cycles with no kill/promote/pivot decisions.\n"
-                f"Evidence store size at streak start: {evidence_size}.\n\n"
+                f"Evidence store size: {evidence_size}.\n\n"
                 "## Likely causes\n\n"
                 "- Dataset retest cache is too aggressive (DATASET_RETEST_AFTER) —\n"
                 "  hypothesis is being re-evaluated against the same evidence.\n"
