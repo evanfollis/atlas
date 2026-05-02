@@ -239,6 +239,128 @@ class AutonomousRunner:
             return False
         return len(df) >= MIN_BARS_FOR_RESEARCH
 
+    def _has_productive_universe_dataset(
+        self,
+        fresh_tested: set[tuple[str, str]],
+    ) -> tuple[str, str] | None:
+        """Return the first DEFAULT_UNIVERSE pair that is BOTH unfresh
+        AND has ≥ `MIN_BARS_FOR_RESEARCH` bars currently. None if no
+        universe dataset can produce a new experiment this cycle.
+
+        Used by `_include_orphaned_testing` to avoid re-including a
+        hypothesis whose only "unfresh" dataset has insufficient bars
+        (the SOL/USDT 1h case observed 2026-05-02). Without this check,
+        `re_included_productive` telemetry would be misleading —
+        hypotheses would burn slots and produce zero experiments,
+        exactly the failure mode the reviewer flagged.
+        """
+        for sym, tf in DEFAULT_UNIVERSE:
+            if (sym, tf) in fresh_tested:
+                continue
+            try:
+                df = self.market.fetch_ohlcv(symbol=sym, timeframe=tf, limit=100000)
+            except Exception:
+                continue
+            if len(df) >= MIN_BARS_FOR_RESEARCH:
+                return (sym, tf)
+        return None
+
+    def _include_orphaned_testing(self, current: list[Hypothesis]) -> list[Hypothesis]:
+        """Re-include TESTING-status hypotheses that can produce at least
+        one new experiment this cycle (an unfresh DEFAULT_UNIVERSE pair
+        with ≥ MIN_BARS_FOR_RESEARCH bars).
+
+        Without this, hypotheses promoted by `_top_up_from_formulated_pool`
+        are orphaned after one cycle: signal scans won't re-pick them
+        (parameter drift changes claim hashes), and the top-up path
+        only touches FORMULATED entries. The result observed 2026-05-02:
+        seven hypotheses promoted, one productive cycle, then 14+
+        consecutive empty cycles.
+
+        Order: this MUST run before `_top_up_from_formulated_pool`.
+        Reversed, the top-up fills the slot budget first and TESTING
+        starves forever — the dispatch handoff
+        `atlas-testing-reeval-p1-2026-05-02T16-48Z.md` requires this
+        invariant.
+
+        Slot budget shared via `TOP_UP_TARGET` so Bonferroni stays
+        bounded; the recompute in `run_cycle` covers the addition.
+
+        Hygiene gates (added per adversarial review):
+          - claim-permanently-infeasible TESTING entries (e.g. ingested
+            from research/ingest with BitMEX in claim, never migrated)
+            are skipped, NOT auto-migrated — auto-migration is an
+            ingest-contract decision out of scope for re-eval.
+          - "unfresh dataset exists" is not enough; we require
+            "unfresh dataset with ≥ MIN_BARS_FOR_RESEARCH bars".
+            Otherwise `re_included_productive` would be misleading and
+            operators would see `cycle.completed hypotheses_evaluated=0`
+            after `cycle.testing_reeval re_included_productive=N` and
+            assume a bug.
+        """
+        if len(current) >= TOP_UP_TARGET:
+            return current
+
+        current_ids = {h.id for h in current}
+        candidates: list[Hypothesis] = []
+        for record in self._list_objs("hypotheses"):
+            if record.get("status") != HypothesisStatus.TESTING.value:
+                continue
+            if record.get("id") in current_ids:
+                continue
+            try:
+                candidates.append(Hypothesis.model_validate(record))
+            except Exception as exc:
+                log.warning("Skipping malformed hypothesis record: %s", exc)
+                continue
+
+        candidates.sort(key=lambda c: c.id)
+
+        re_included_ids: list[str] = []
+        skipped_freshness_ids: list[str] = []
+        skipped_claim_infeasible_ids: list[str] = []
+        for h in candidates:
+            if len(current) >= TOP_UP_TARGET:
+                break
+            if self._claim_is_permanently_infeasible(h):
+                skipped_claim_infeasible_ids.append(h.id)
+                continue
+            existing_evidence = [
+                Evidence.model_validate(d)
+                for d in self._list_objs("evidence")
+                if d.get("hypothesis_id") == h.id
+            ]
+            fresh = self._fresh_tested_datasets(existing_evidence)
+            if self._has_productive_universe_dataset(fresh) is None:
+                # Either every universe dataset is fresh OR every
+                # unfresh one has insufficient bars. Either way no new
+                # experiment can run — don't burn a slot.
+                skipped_freshness_ids.append(h.id)
+                continue
+            current.append(h)
+            re_included_ids.append(h.id)
+
+        if candidates:
+            self._log_methodology({
+                "phase": "testing_reeval",
+                "re_included_productive": re_included_ids,
+                "skipped_no_productive_dataset": skipped_freshness_ids,
+                "skipped_claim_infeasible": skipped_claim_infeasible_ids,
+                "pool_size": len(candidates),
+                "current_size": len(current),
+            })
+            self._emit_telemetry(
+                "cycle.testing_reeval",
+                details={
+                    "re_included_productive": len(re_included_ids),
+                    "skipped_no_productive_dataset": len(skipped_freshness_ids),
+                    "skipped_claim_infeasible": len(skipped_claim_infeasible_ids),
+                    "pool_size": len(candidates),
+                    "current_size": len(current),
+                },
+            )
+        return current
+
     def _top_up_from_formulated_pool(self, current: list[Hypothesis]) -> list[Hypothesis]:
         """Promote currently-feasible FORMULATED hypotheses into the
         cycle's test set; mark claim-permanently-infeasible ones as
@@ -1090,6 +1212,15 @@ class AutonomousRunner:
 
         # Phase 2: Generate hypotheses (with durable IDs and Bonferroni correction)
         hypotheses = self.generate_hypotheses(signal_results)
+
+        # Phase 2a: Re-include orphaned TESTING hypotheses that have an
+        # unfresh DEFAULT_UNIVERSE dataset. P1 dispatch handoff
+        # (atlas-testing-reeval-p1-2026-05-02T16-48Z.md). Without this,
+        # A+C+D2 promotes hypotheses but they orphan after one cycle —
+        # observed 2026-05-02 as 14 consecutive empty cycles.
+        # MUST run before top-up so re-evaluating active TESTING work is
+        # preferred over promoting from the cold FORMULATED pool.
+        hypotheses = self._include_orphaned_testing(hypotheses)
 
         # Phase 2b: Top up from FORMULATED pool when signal-driven generation
         # under-fills the cycle. Per principal decision A+C+D2 (handoff

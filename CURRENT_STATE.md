@@ -7,7 +7,7 @@ updated: 2026-05-02
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-05-02T14:26Z — Counter gate deployed (restart 14:25:28Z, new PID 3359992 on c585891). Runner still stuck on the orphaned-TESTING failure mode A+C+D2 didn't catch: 7 TESTING hypotheses have no re-evaluation path (top-up only touches FORMULATED; signal scan won't re-fire under parameter drift). Surfaced to general via `general-atlas-orphaned-testing-failure-mode-2026-05-02T14-26Z.md`; P1 (TESTING re-eval) and P3 (off-universe → INFEASIBLE) deferred per ADR-0020 strict reading of A+C+D2 scope and per advisor. Evidence still 225; counter gate will re-arm in ~3 cycles.
+**Last updated**: 2026-05-02T17:05Z — P1 (TESTING re-eval) implemented per supervisor dispatch (`atlas-testing-reeval-p1-2026-05-02T16-48Z.md`). New `_include_orphaned_testing` runs before `_top_up_from_formulated_pool` (ordering invariant tested), with productivity gate (require ≥ MIN_BARS_FOR_RESEARCH bars on at least one unfresh universe dataset) and claim-infeasible hygiene per adversarial review. 168 tests pass (was 156 → +12). **Honest timing**: BTC/ETH freshness for the 7 orphans expires 19:22Z–20:40Z today, so `re_included_productive` will stay 0 until then; acceptance criterion #2 ("at least one TESTING evaluated next cycle") will be satisfied at first cycle in that window, not at deploy time. P3 still deferred (principal-class).
 
 ---
 
