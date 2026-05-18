@@ -2,7 +2,7 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-05-18T14-20-20Z
+updated: 2026-05-18T16-45-45Z
 ---
 
 # CURRENT_STATE — atlas
