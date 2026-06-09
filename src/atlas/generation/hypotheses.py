@@ -206,6 +206,23 @@ def from_graph_gaps(graph: CausalGraph) -> list[Hypothesis]:
     for root_id in graph.roots():
         data = graph.get_primitive_data(root_id)
         if data and not list(graph.g.successors(root_id)):
+            status = data.get("status", "promoted")
+            if status == "refuted":
+                hypotheses.append(Hypothesis(
+                    claim=f"The refuted claim '{data['claim']}' failed because of an unmodeled "
+                          f"market regime or confounder that can be isolated in follow-up tests",
+                    rationale=f"Refuted node {root_id} is tested negative knowledge, not a dead end. "
+                              f"If the original effect only appears under a narrower regime, Atlas "
+                              f"should search for the conditioning variable rather than re-test the "
+                              f"same unconditional claim.",
+                    falsification_criteria="Conditioning on candidate regimes or confounders does not "
+                                           "materially change out-of-sample evidence relative to the "
+                                           "original refuted claim",
+                    tags=data.get("tags", []) + ["graph_gap", "refuted_claim", "confounder_search"],
+                    parent_primitive_id=root_id,
+                ))
+                continue
+
             hypotheses.append(Hypothesis(
                 claim=f"The validated primitive '{data['claim']}' has downstream predictive implications "
                       f"that can be tested with new experiments",

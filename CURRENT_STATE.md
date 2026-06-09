@@ -2,17 +2,17 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-06-09T16-30-00Z
+updated: 2026-06-09T16-45-00Z
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-06-09T16:30Z — **REALIGNMENT** per principal clarification (handoff `atlas-causal-map-loop-realignment-2026-06-09`). Atlas was **not** intentionally parked/retired; the prior PARKED/retired disposition (ADR-0033 + idle-cycle pressure) is **superseded**. Intent: keep mapping crypto-market behavior via falsifiable hypotheses + conjecture/criticism, building a Pearl-style causal map. **Runner is RUNNING** (auto-started on reboot, `active since 2026-06-09 16:03:02Z`, PID 790) — not stopped. Full audit answering the handoff's 5 questions written to **`CAUSAL_LOOP_AUDIT.md`**. Load-bearing diagnosis (unchanged, now framed as a deadlock to break, not grounds to park): generator exhausted (22 candidates → 0 unique every cycle since 2026-05-18, confirmed in `methodology.jsonl`), **0 of 76 hypotheses ever promoted**, `graph/causal_graph.json` never created → `from_graph_gaps` dead-on-arrival → cold-start deadlock. **CORRECTION to prior note**: `escalation_state.json` has `emitted_for_current_streak: true` → the S3-P2 gate is **locked/silent (blind), not about-to-fire**; restart does NOT trigger a spurious escalation. The real issue is a saturated gate that can only reset on a decisive cycle (which never comes).
+**Last updated**: 2026-06-09T16:45Z — **ADR-0035 implementation shipped + deployed**: falsified claims are now first-class causal-map content, distinct from promoted primitives. `graph/causal_graph.json` has been backfilled with **69 refuted nodes** from existing FALSIFIED hypotheses. `atlas graph show` no longer reports an empty map. `from_graph_gaps()` now generates follow-up confounder-search hypotheses from refuted nodes, and the runner records structured no-action reasons when the hypothesis space is exhausted. Manual validation with `timeout 240 .venv/bin/atlas run --once` crossed the old deadlock point and created graph-derived follow-up work/evidence before timing out; this proved the loop no longer goes straight from 22 signals to 0 hypotheses. **Review fix applied**: graph-gap/refuted follow-ups no longer fall back to arbitrary default datasets; they require a parsed, in-universe, claim-faithful dataset or skip as `no_claim_faithful_dataset`. Full tests: `.venv/bin/python -m pytest` → **172 passed, 20 warnings**. `atlas-runner.service` restarted at 2026-06-09T16:43Z and is active on the new code.
 
 ---
 
 ## Deployed / running state
-- **Mode**: autonomous research loop (signal intake → hypothesis → experiment → evidence → graph update). **RUNNING** since 2026-06-09 16:03:02Z (auto-started on reboot; unit `enabled`). Per principal clarification 2026-06-09, **keep it running** unless a concrete safety/cost issue arises; any pause is a principal-facing decision with evidence, not an idle-cycle cleanup. Cycles are currently structurally-empty (cold-start deadlock — see `CAUSAL_LOOP_AUDIT.md`), but the cost is ~1 Bitstamp scan/hour.
+- **Mode**: autonomous research loop (signal intake → hypothesis → experiment → evidence → graph update). **RUNNING** since 2026-06-09T16:43Z after ADR-0035 migration/restart. Per principal clarification 2026-06-09, **keep it running** unless a concrete safety/cost issue arises; any pause is a principal-facing decision with evidence, not an idle-cycle cleanup.
 - **Lifecycle classification**: **research-only** (snapshot 2026-04-25T19:30Z). Live verdict: `.venv/bin/atlas strategy readiness`. Promoted primitives = 0 → live-signal generation is blocked by absence of primitives. Promotable candidates = 0. Next milestone per `atlas-strategy-readiness-2026-04-25.md` is paper-strategy materialization from promoted primitives (no execution layer until then).
 - **Domain**: crypto markets (Bitstamp for deep OHLCV history — Binance/Bybit blocked on Hetzner US server).
 - **Entry**: production = `systemctl status/start/stop atlas-runner.service`. Debug = `.venv/bin/atlas run --once` from project root.
@@ -20,6 +20,14 @@ updated: 2026-06-09T16-30-00Z
 - **Data stores**: `methodology.jsonl`, `pending_revalidation.jsonl`, `graph/`, `.atlas/`, `.canon/`.
 
 ## What just shipped
+- **ADR-0035 falsifications-as-map-content (2026-06-09T16:45Z, this commit, deployed)**:
+  - `models/graph.py` now supports mixed-status graph nodes. Promoted primitives remain `status=promoted`, `trust=high`; falsified hypotheses become `status=refuted`, `trust=tested_refutation` and do **not** count as promoted primitives or trading-ready signals.
+  - New `graph_backfill.py` helper and `atlas graph backfill-falsified` CLI project existing FALSIFIED hypotheses into the graph. Live backfill added 69 refuted nodes, 0 edges, 7 skipped non-falsified records.
+  - `from_graph_gaps()` can generate follow-up hypotheses from refuted roots: "the refuted claim failed because of an unmodeled market regime or confounder..." tagged `graph_gap/refuted_claim/confounder_search`.
+  - Runner writes future kills into the causal map and emits structured empty-cycle telemetry (`no_action_reason=hypothesis_space_exhausted`, `refuted_nodes`, `backfill`).
+  - Adversarial review (`supervisor/.reviews/atlas-falsified-map-content-2026-06-09.md`) flagged claim-fidelity risk. Fixed before commit: graph-gap hypotheses require claim-faithful parsed datasets and no longer fall back to arbitrary BTC/ETH default cross-validation.
+  - Manual validation: `timeout 240 .venv/bin/atlas run --once` generated graph-gap hypotheses and evidence instead of the previous empty cycle, then timed out before full cycle completion. Follow-up fix: graph-gap hypotheses skipped for `no_claim_faithful_dataset` no longer create new active cycles. Remaining caveat: pre-existing/manual-validation active-cycle ambiguity remains (`atlas status` warns multiple active cycles); do not treat historical cycle cleanup as solved by this patch.
+  - Tests: 168 → 172. `.venv/bin/python -m pytest` → 172 passed, 20 warnings (pre-existing numerical warnings in min-bars guard tests).
 - **P1 TESTING re-eval loop (2026-05-02T17:05Z, commit 71224e9) — PUSHED + DEPLOYED 2026-05-02T17:04:56Z**:
   - `_include_orphaned_testing` runs before `_top_up_from_formulated_pool` in `run_cycle`. Ordering enforced by source-inspection test (reversed, top-up fills slots and TESTING starves forever).
   - `_has_productive_universe_dataset` gate: requires ≥ MIN_BARS_FOR_RESEARCH bars on at least one unfresh DEFAULT_UNIVERSE pair before re-including. SOL/USDT 1h (0 bars on Bitstamp) correctly skipped.

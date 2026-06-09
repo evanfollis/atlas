@@ -20,6 +20,7 @@ from atlas.generation.composite_hypotheses import COMPOSITE_GENERATORS
 from atlas.generation.composite_signals import scan_composite
 from atlas.generation.hypotheses import from_graph_gaps, from_signal
 from atlas.generation.signals import scan_all, detect_cross_asset_spread, detect_lead_lag
+from atlas.graph_backfill import backfill_falsified_claims
 from atlas.models.events import EventType, SessionEvent
 from atlas.models.evidence import Evidence, EvidenceClass, EvidenceDirection, EvidenceQuality
 from atlas.models.experiment import Experiment, ExperimentStatus
@@ -1121,6 +1122,7 @@ class AutonomousRunner:
         if len(strong_contradict) >= 2:
             h.status = HypothesisStatus.FALSIFIED
             self._save_obj("hypotheses", h.id, h.model_dump())
+            self._add_refuted_claim_to_graph(h, evidence)
             cycle.status = CycleStatus.CLOSED
             cycle.outcome = CycleOutcome.KILLED
             cycle.decision_rationale = f"Falsified: {len(strong_contradict)} strong contradictory evidence records"
@@ -1187,6 +1189,7 @@ class AutonomousRunner:
         if all_weak_or_negative and len(evidence) >= 3:
             h.status = HypothesisStatus.FALSIFIED
             self._save_obj("hypotheses", h.id, h.model_dump())
+            self._add_refuted_claim_to_graph(h, evidence)
             cycle.status = CycleStatus.CLOSED
             cycle.outcome = CycleOutcome.KILLED
             cycle.decision_rationale = f"Killed: {len(evidence)} evidence records, none strong/supporting"
@@ -1199,6 +1202,22 @@ class AutonomousRunner:
             return "kill"
 
         return "continue"
+
+    def _add_refuted_claim_to_graph(self, h: Hypothesis, evidence: list[Evidence]) -> None:
+        """Project a killed hypothesis into the causal map as tested negative knowledge."""
+        graph = self.graph_store.load()
+        contradiction_count = sum(
+            1
+            for e in evidence
+            if e.quality == EvidenceQuality.STRONG
+            and e.direction == EvidenceDirection.CONTRADICTS
+        )
+        graph.add_refuted_hypothesis(
+            h,
+            [e.id for e in evidence],
+            contradiction_count=contradiction_count,
+        )
+        self.graph_store.save(graph)
 
     def run_cycle(self) -> dict:
         """Execute one complete research cycle."""
@@ -1242,9 +1261,16 @@ class AutonomousRunner:
 
         if not hypotheses:
             log.info("No hypotheses generated this cycle")
+            backfill_stats = backfill_falsified_claims(self.state, self.graph_store)
             graph = self.graph_store.load()
             cycle_report["graph_nodes"] = graph.node_count
             cycle_report["graph_edges"] = graph.edge_count
+            cycle_report["no_action"] = {
+                "reason": "hypothesis_space_exhausted",
+                "signals_found": cycle_report.get("signals_found", 0),
+                "hypotheses_generated": 0,
+                "backfill": backfill_stats,
+            }
             # Emit cycle.completed even on the empty-hypothesis path so the
             # S3-P2 gate is not blind to "loop is starving" failures
             # (regression: 04-30 14:18Z URGENT — runner ran 14h producing
@@ -1258,6 +1284,9 @@ class AutonomousRunner:
                     "graph_nodes": graph.node_count,
                     "graph_edges": graph.edge_count,
                     "decisions_by_kind": {},
+                    "no_action_reason": "hypothesis_space_exhausted",
+                    "refuted_nodes": graph.status_counts().get("refuted", 0),
+                    "backfill": backfill_stats,
                 },
             )
             try:
@@ -1284,18 +1313,8 @@ class AutonomousRunner:
             if not self._load_obj("hypotheses", h.id):
                 self._save_obj("hypotheses", h.id, h.model_dump())
 
-            # Find or create cycle
-            cycle = self._find_active_cycle(h.id)
-            if not cycle:
-                cycle = ResearchCycle(hypothesis_id=h.id)
-                self._save_obj("cycles", cycle.id, cycle.model_dump())
-                self.events.append(SessionEvent(
-                    session_id=cycle.id,
-                    event_type=EventType.HYPOTHESIS_FORMULATED,
-                    details={"hypothesis_id": h.id, "claim": h.claim},
-                ))
-
             h_report = {"id": h.id, "claim": h.claim, "experiments": []}
+            is_graph_gap = "graph_gap" in h.tags
 
             # Determine which datasets to test on. Primary from signal source,
             # plus additional datasets for cross-validation (distinct experiments).
@@ -1308,6 +1327,15 @@ class AutonomousRunner:
             if h.claim in claim_to_data:
                 sym, tf, df = claim_to_data[h.claim]
                 datasets.append((sym, tf, df))
+            elif is_graph_gap:
+                parsed = self._parse_dataset_from_hypothesis(h)
+                if parsed and parsed in DEFAULT_UNIVERSE_SET:
+                    try:
+                        df = self.market.fetch_ohlcv(symbol=parsed[0], timeframe=parsed[1], limit=100000)
+                        if len(df) >= MIN_BARS_FOR_RESEARCH:
+                            datasets.append((parsed[0], parsed[1], df))
+                    except Exception as exc:
+                        log.info("Graph-gap dataset fetch failed for %s: %s", h.id, exc)
 
             # Extract the base asset from tags for cross-validation
             base_asset = None
@@ -1317,21 +1345,55 @@ class AutonomousRunner:
                     break
 
             # Add cross-validation datasets (same strategy, different data)
-            for sym, tf in DEFAULT_UNIVERSE:
-                if (sym, tf) not in fresh_tested_datasets and (not datasets or (sym, tf) != (datasets[0][0], datasets[0][1])):
-                    try:
-                        xdf = self.market.fetch_ohlcv(symbol=sym, timeframe=tf, limit=100000)
-                        if len(xdf) >= 200:
-                            datasets.append((sym, tf, xdf))
-                    except Exception:
-                        continue
-                if len(datasets) >= 3:
-                    break
+            if not is_graph_gap:
+                for sym, tf in DEFAULT_UNIVERSE:
+                    if (sym, tf) not in fresh_tested_datasets and (not datasets or (sym, tf) != (datasets[0][0], datasets[0][1])):
+                        try:
+                            xdf = self.market.fetch_ohlcv(symbol=sym, timeframe=tf, limit=100000)
+                            if len(xdf) >= 200:
+                                datasets.append((sym, tf, xdf))
+                        except Exception:
+                            continue
+                    if len(datasets) >= 3:
+                        break
 
             if not datasets:
+                if is_graph_gap:
+                    h_report["skip_reason"] = "no_claim_faithful_dataset"
+                    h_report["decision"] = "continue"
+                    self._log_methodology({
+                        "phase": "experiment_selection",
+                        "hypothesis_id": h.id,
+                        "skipped": "no_claim_faithful_dataset",
+                        "tags": h.tags,
+                    })
+                    cycle_report["hypotheses"].append(h_report)
+                    self._emit_telemetry(
+                        "hypothesis.decided",
+                        details={
+                            "hypothesis_id": h.id,
+                            "decision": "continue",
+                            "skip_reason": "no_claim_faithful_dataset",
+                            "total_evidence_store_size": len(self.state.list_all("evidence")),
+                        },
+                    )
+                    continue
                 symbol, timeframe = "BTC/USDT", "1h"
                 df = self.market.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=100000)
                 datasets.append((symbol, timeframe, df))
+
+            # Find or create a cycle only after we know the hypothesis has a
+            # claim-faithful dataset to test. Otherwise skipped graph-gap
+            # followups create permanent active-cycle clutter.
+            cycle = self._find_active_cycle(h.id)
+            if not cycle:
+                cycle = ResearchCycle(hypothesis_id=h.id)
+                self._save_obj("cycles", cycle.id, cycle.model_dump())
+                self.events.append(SessionEvent(
+                    session_id=cycle.id,
+                    event_type=EventType.HYPOTHESIS_FORMULATED,
+                    details={"hypothesis_id": h.id, "claim": h.claim},
+                ))
 
             # Test on each dataset (distinct experiments for promotion gate)
             n_folds = 5

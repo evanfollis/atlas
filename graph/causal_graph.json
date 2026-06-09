@@ -1,0 +1,1799 @@
+{
+  "directed": true,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT 1h shows 20-bar reversal (49% hit rate), enabling a contrarian strategy",
+      "hypothesis_id": "047a4d409bc36a86",
+      "evidence_ids": [
+        "671b0b4070c4",
+        "8f36c297e728",
+        "bcceb1dd3b57",
+        "ce531847dafa"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "reversal",
+        "mean_reversion",
+        "lookback_20"
+      ],
+      "rationale": "Detected 48.6% directional persistence over 20-bar windows. If structural, a contrarian strategy following the 20-bar trend should profit.",
+      "falsification_criteria": "Contrarian strategy based on 20-bar returns does not produce significant positive Sharpe (p > alpha)",
+      "id": "refuted:047a4d409bc36a86"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "SOL/USDT exhibits negative drift in last 3 days of month (-0.235% per bar vs rest, n=252) \u2014 short EOM strategy",
+      "hypothesis_id": "050a83091360badb",
+      "evidence_ids": [
+        "55e77ab723a8",
+        "a47a949493b0",
+        "ec76e2c3a7d4"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "sol_usdt",
+        "4h",
+        "composite",
+        "end_of_month",
+        "calendar",
+        "negative",
+        "hold_18"
+      ],
+      "rationale": "Institutional rebalancing at month-end forces position trimming on outperforming/volatile assets to maintain target allocations. Crypto's high volatility makes it a frequent target of these rebalancing flows. The effect is causally grounded in TradFi accounting cycles, not statistical accident.",
+      "falsification_criteria": "Short-EOM strategy (last 3 days of month) does not produce significant returns vs always-flat baseline (p > alpha)",
+      "id": "refuted:050a83091360badb"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bearish on-chain divergence in BTC/USDT: price rising but on-chain volume declining signals speculative rally without real activity (20 events)",
+      "hypothesis_id": "10f02584f7f20295",
+      "evidence_ids": [
+        "0dda962d6039",
+        "4c9639c4544a",
+        "c7c03ca81e1f"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "4h",
+        "composite",
+        "onchain_divergence",
+        "bearish",
+        "hold_20"
+      ],
+      "rationale": "Rising price without corresponding on-chain activity means the rally is driven by derivatives/leverage, not actual BTC movement. These rallies are fragile \u2014 there's no real demand backing the price increase.",
+      "falsification_criteria": "Short position on on-chain divergence with 20-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:10f02584f7f20295"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT reverts to 50-period mean after extreme deviations (|z| > 2.0) within 25 periods",
+      "hypothesis_id": "1266c7d968933684",
+      "evidence_ids": [
+        "17552302da92",
+        "8ef81821f8eb",
+        "e92a7f4540ba",
+        "fc37c00c2826"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "mean_reversion",
+        "ma_50"
+      ],
+      "rationale": "Observed 93% reversion rate across 10012 extreme events. If structural, a mean-reversion strategy should capture this.",
+      "falsification_criteria": "Buy-the-dip (z < -2) / sell-the-spike (z > 2) strategy does not produce significant positive returns (p > alpha)",
+      "id": "refuted:1266c7d968933684"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Extreme greed (FNG>75) during rally in ETH/USDT marks euphoria \u2014 selling and holding 20 bars captures reversal (46% reversal rate across 41 events)",
+      "hypothesis_id": "1a4bf30b3d4f1697",
+      "evidence_ids": [
+        "8cb2c267381b",
+        "a60ca59ec832",
+        "a922197d7c3f"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "composite",
+        "greed_euphoria",
+        "sentiment",
+        "hold_20"
+      ],
+      "rationale": "Extreme greed during extended rally reflects overleveraged positioning. Marginal buyers exhausted, liquidation cascades become likely. Short exposure profits from the inevitable deleveraging.",
+      "falsification_criteria": "Sell-at-greed strategy with 20-bar holding period does not produce significant negative returns for the asset (p > alpha)",
+      "id": "refuted:1a4bf30b3d4f1697"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bearish multi-source confluence in SOL/USDT: greed + distribution + rally marks structural top (67 events)",
+      "hypothesis_id": "1d2dd95c17a14471",
+      "evidence_ids": [
+        "5fe2a63e5e04",
+        "635a76d4d93d",
+        "926e5ef05635"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "sol_usdt",
+        "4h",
+        "composite",
+        "regime_confluence",
+        "bearish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail greed \u2192 overleveraged, (2) on-chain volume falling \u2192 real activity doesn't support the price, (3) price at recent highs \u2192 maximum euphoria. The rally is built on leverage and sentiment, not real demand. Liquidation cascade is the likely resolution.",
+      "falsification_criteria": "Short position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:1d2dd95c17a14471"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish on-chain divergence in SOL/USDT: price falling but on-chain volume rising signals accumulation by large holders (102 events)",
+      "hypothesis_id": "268223ac6161db5b",
+      "evidence_ids": [
+        "747f0348823c",
+        "7d0e6a6284b7",
+        "cb4a6ecabb4e"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "sol_usdt",
+        "4h",
+        "composite",
+        "onchain_divergence",
+        "bullish",
+        "hold_20"
+      ],
+      "rationale": "Declining price + rising on-chain volume means real BTC is moving to new wallets despite negative sentiment. This pattern reflects informed accumulation \u2014 large holders buying from panicking retail. Price follows on-chain activity.",
+      "falsification_criteria": "Long position on on-chain divergence with 20-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:268223ac6161db5b"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Miner capitulation recovery in BTC/USDT: hashrate recovering after >10% drop signals forced selling exhausted (40% win rate, 45 events)",
+      "hypothesis_id": "27786041b4e68aea",
+      "evidence_ids": [
+        "17a5d94836fc",
+        "992ca2e5ae5f",
+        "db88039c4ffb"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "4h",
+        "composite",
+        "miner_capitulation",
+        "onchain",
+        "hold_30"
+      ],
+      "rationale": "When hashrate drops significantly, unprofitable miners shut down and must sell BTC reserves to cover fixed costs (facilities, loans). This creates selling pressure. When hashrate recovers, the forced selling is over \u2014 a structural price floor forms. Buy signal is recovery, not the drop.",
+      "falsification_criteria": "Long position on hashrate recovery with 30-bar hold does not produce significant positive returns (p > alpha)",
+      "id": "refuted:27786041b4e68aea"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish multi-source confluence in SOL/USDT: fear + accumulation + drawdown marks structural buying opportunity (22 events)",
+      "hypothesis_id": "2af5a09ed05e3e1d",
+      "evidence_ids": [
+        "13fa2b011e01",
+        "6fc534dc9975",
+        "9680fd56dd33"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "sol_usdt",
+        "4h",
+        "composite",
+        "regime_confluence",
+        "bullish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail sentiment extreme fear \u2192 capitulation selling exhausted, (2) on-chain volume rising \u2192 large holders accumulating despite fear, (3) price at recent lows \u2192 maximum pain. Each source tells a different part of the same story. Together they identify moments where forced selling is exhausted and informed money is positioned.",
+      "falsification_criteria": "Long position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:2af5a09ed05e3e1d"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish multi-source confluence in BTC/USDT: fear + accumulation + drawdown marks structural buying opportunity (133 events)",
+      "hypothesis_id": "2c8b6697561b981e",
+      "evidence_ids": [
+        "0f5f9cb9d84d",
+        "afcba547340e",
+        "bf179660dfa3",
+        "d304a230d8fd"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "composite",
+        "regime_confluence",
+        "bullish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail sentiment extreme fear \u2192 capitulation selling exhausted, (2) on-chain volume rising \u2192 large holders accumulating despite fear, (3) price at recent lows \u2192 maximum pain. Each source tells a different part of the same story. Together they identify moments where forced selling is exhausted and informed money is positioned.",
+      "falsification_criteria": "Long position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:2c8b6697561b981e"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT weekend volatility is 40% lower than weekday \u2014 weekend-skip strategy avoids drawdown variance",
+      "hypothesis_id": "312ed96259b905dc",
+      "evidence_ids": [
+        "82125e5da28f",
+        "8d4e79e62b9a",
+        "90a54d6544c7"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "4h",
+        "composite",
+        "weekend_skip",
+        "calendar",
+        "hold_5"
+      ],
+      "rationale": "Traditional markets close on weekends, reducing institutional flow and liquidity. Weekend moves are retail-driven, lower volatility but also less predictable. Sitting out weekends preserves capital for higher-edge weekday trading.",
+      "falsification_criteria": "Strategy of holding only on weekdays does not produce better risk-adjusted returns than always-long baseline (p > alpha)",
+      "id": "refuted:312ed96259b905dc"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "ETH/USDT 1h shows 20-bar reversal (49% hit rate), enabling a contrarian strategy",
+      "hypothesis_id": "3543fb2d2c186499",
+      "evidence_ids": [
+        "05b5bf309d4c",
+        "0a6ab4a02fa1",
+        "359818d5bf36",
+        "695c418c4eaf"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "reversal",
+        "mean_reversion",
+        "lookback_20"
+      ],
+      "rationale": "Detected 48.8% directional persistence over 20-bar windows. If structural, a contrarian strategy following the 20-bar trend should profit.",
+      "falsification_criteria": "Contrarian strategy based on 20-bar returns does not produce significant positive Sharpe (p > alpha)",
+      "id": "refuted:3543fb2d2c186499"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bearish multi-source confluence in ETH/USDT: greed + distribution + rally marks structural top (93 events)",
+      "hypothesis_id": "35bf6e2099bf810a",
+      "evidence_ids": [
+        "1f3e80c3b2f2",
+        "89b669420861",
+        "90f5ce984668"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "4h",
+        "composite",
+        "regime_confluence",
+        "bearish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail greed \u2192 overleveraged, (2) on-chain volume falling \u2192 real activity doesn't support the price, (3) price at recent highs \u2192 maximum euphoria. The rally is built on leverage and sentiment, not real demand. Liquidation cascade is the likely resolution.",
+      "falsification_criteria": "Short position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:35bf6e2099bf810a"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "ETH/USDT 1h shows volatility clustering (|r| autocorr=0.289), enabling a vol-scaled position strategy",
+      "hypothesis_id": "37a2fb0a6f84aa34",
+      "evidence_ids": [
+        "42df31a8609e",
+        "b3ecd3447136",
+        "cf9349c2bdaf",
+        "ec8e816a3091"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "volatility_clustering",
+        "vol_scaling"
+      ],
+      "rationale": "Absolute returns show strong autocorrelation (0.289), meaning high volatility periods persist. Reducing position size after vol spikes and increasing after calm periods should improve risk-adjusted returns.",
+      "falsification_criteria": "Vol-scaled strategy does not produce significantly better Sharpe than buy-and-hold (p > alpha)",
+      "id": "refuted:37a2fb0a6f84aa34"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "ETH/USDT 1h returns show negative autocorrelation at lag 2, enabling a mean-reversion strategy",
+      "hypothesis_id": "384c919315f2581d",
+      "evidence_ids": [
+        "1ae316372828",
+        "27b004935031",
+        "2a1da0313f0b",
+        "34593cecce35"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "autocorrelation",
+        "mean_reversion"
+      ],
+      "rationale": "Detected significant autocorrelation r=-0.036 at lag 2. If persistent, this implies predictable return patterns.",
+      "falsification_criteria": "Sharpe ratio of lag-2 contrarian strategy is not significantly different from zero (p > alpha)",
+      "id": "refuted:384c919315f2581d"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Miner capitulation recovery in ETH/USDT: hashrate recovering after >10% drop signals forced selling exhausted (18% win rate, 45 events)",
+      "hypothesis_id": "3a6393d4ea3a3b80",
+      "evidence_ids": [
+        "37e8f3cfad40",
+        "3a71eb42fa9c",
+        "8b4498d9dd6e"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "4h",
+        "composite",
+        "miner_capitulation",
+        "onchain",
+        "hold_30"
+      ],
+      "rationale": "When hashrate drops significantly, unprofitable miners shut down and must sell BTC reserves to cover fixed costs (facilities, loans). This creates selling pressure. When hashrate recovers, the forced selling is over \u2014 a structural price floor forms. Buy signal is recovery, not the drop.",
+      "falsification_criteria": "Long position on hashrate recovery with 30-bar hold does not produce significant positive returns (p > alpha)",
+      "id": "refuted:3a6393d4ea3a3b80"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Extreme fear (FNG<25) during drawdown in ETH/USDT marks capitulation \u2014 buying and holding 20 bars yields positive returns (100% win rate across 11 events)",
+      "hypothesis_id": "3dbb0a096188b3d4",
+      "evidence_ids": [
+        "416a1b76e9e9",
+        "49062fb6b155",
+        "bbb25933140b"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "composite",
+        "fear_capitulation",
+        "sentiment",
+        "hold_20"
+      ],
+      "rationale": "Extreme fear reflects retail panic. Combined with significant drawdown, it signals forced sellers are exhausted. Remaining supply is in stronger hands, creating asymmetric upside. The holding period avoids whipsaws from continued fear oscillation.",
+      "falsification_criteria": "Buy-at-fear strategy with 20-bar holding period does not produce significant positive returns (p > alpha)",
+      "id": "refuted:3dbb0a096188b3d4"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish multi-source confluence in ETH/USDT: fear + accumulation + drawdown marks structural buying opportunity (95 events)",
+      "hypothesis_id": "45c4a316968d0cc8",
+      "evidence_ids": [
+        "30a4cff7eeea",
+        "3d440b3bc7ce",
+        "8212155e2697",
+        "a68118507b7a"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "composite",
+        "regime_confluence",
+        "bullish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail sentiment extreme fear \u2192 capitulation selling exhausted, (2) on-chain volume rising \u2192 large holders accumulating despite fear, (3) price at recent lows \u2192 maximum pain. Each source tells a different part of the same story. Together they identify moments where forced selling is exhausted and informed money is positioned.",
+      "falsification_criteria": "Long position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:45c4a316968d0cc8"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish multi-source confluence in SOL/USDT: fear + accumulation + drawdown marks structural buying opportunity (51 events)",
+      "hypothesis_id": "48ae094cca977fbd",
+      "evidence_ids": [
+        "5fa4ea36c851",
+        "8814ab76f7e7",
+        "e2fbeae59ae2"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "sol_usdt",
+        "1h",
+        "composite",
+        "regime_confluence",
+        "bullish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail sentiment extreme fear \u2192 capitulation selling exhausted, (2) on-chain volume rising \u2192 large holders accumulating despite fear, (3) price at recent lows \u2192 maximum pain. Each source tells a different part of the same story. Together they identify moments where forced selling is exhausted and informed money is positioned.",
+      "falsification_criteria": "Long position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:48ae094cca977fbd"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Extreme greed (FNG>75) during rally in BTC/USDT marks euphoria \u2014 selling and holding 20 bars captures reversal (40% reversal rate across 43 events)",
+      "hypothesis_id": "4e934da83b85f3fe",
+      "evidence_ids": [
+        "8ca8883616cb",
+        "9841d1e8cede",
+        "b047ee39b304"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "4h",
+        "composite",
+        "greed_euphoria",
+        "sentiment",
+        "hold_20"
+      ],
+      "rationale": "Extreme greed during extended rally reflects overleveraged positioning. Marginal buyers exhausted, liquidation cascades become likely. Short exposure profits from the inevitable deleveraging.",
+      "falsification_criteria": "Sell-at-greed strategy with 20-bar holding period does not produce significant negative returns for the asset (p > alpha)",
+      "id": "refuted:4e934da83b85f3fe"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Extreme greed (FNG>75) during rally in ETH/USDT marks euphoria \u2014 selling and holding 20 bars captures reversal (44% reversal rate across 43 events)",
+      "hypothesis_id": "58d817a26062f7f3",
+      "evidence_ids": [
+        "1b07daa3ad9e",
+        "439df4dccc69",
+        "93afe9cb6e7d"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "4h",
+        "composite",
+        "greed_euphoria",
+        "sentiment",
+        "hold_20"
+      ],
+      "rationale": "Extreme greed during extended rally reflects overleveraged positioning. Marginal buyers exhausted, liquidation cascades become likely. Short exposure profits from the inevitable deleveraging.",
+      "falsification_criteria": "Sell-at-greed strategy with 20-bar holding period does not produce significant negative returns for the asset (p > alpha)",
+      "id": "refuted:58d817a26062f7f3"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "ETH/USDT weekend volatility is 33% lower than weekday \u2014 weekend-skip strategy avoids drawdown variance",
+      "hypothesis_id": "5af4f68b4c96a2f6",
+      "evidence_ids": [
+        "1a53b1775f4d",
+        "26f39a5642c3",
+        "530f80194cbf",
+        "5b40910f7a8d"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "composite",
+        "weekend_skip",
+        "calendar",
+        "hold_5"
+      ],
+      "rationale": "Traditional markets close on weekends, reducing institutional flow and liquidity. Weekend moves are retail-driven, lower volatility but also less predictable. Sitting out weekends preserves capital for higher-edge weekday trading.",
+      "falsification_criteria": "Strategy of holding only on weekdays does not produce better risk-adjusted returns than always-long baseline (p > alpha)",
+      "id": "refuted:5af4f68b4c96a2f6"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish multi-source confluence in BTC/USDT: fear + accumulation + drawdown marks structural buying opportunity (55 events)",
+      "hypothesis_id": "5c727ac8abf16a99",
+      "evidence_ids": [
+        "4eb9f80289c1",
+        "55467ad192c8",
+        "7e4cb31573d7"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "composite",
+        "regime_confluence",
+        "bullish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail sentiment extreme fear \u2192 capitulation selling exhausted, (2) on-chain volume rising \u2192 large holders accumulating despite fear, (3) price at recent lows \u2192 maximum pain. Each source tells a different part of the same story. Together they identify moments where forced selling is exhausted and informed money is positioned.",
+      "falsification_criteria": "Long position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:5c727ac8abf16a99"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Extreme fear (FNG<25) during drawdown in SOL/USDT marks capitulation \u2014 buying and holding 20 bars yields positive returns (60% win rate across 15 events)",
+      "hypothesis_id": "5f3bbd2433031a42",
+      "evidence_ids": [
+        "2d7e29852a6a",
+        "33397a27f6a5",
+        "4a507bf88103"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "sol_usdt",
+        "4h",
+        "composite",
+        "fear_capitulation",
+        "sentiment",
+        "hold_20"
+      ],
+      "rationale": "Extreme fear reflects retail panic. Combined with significant drawdown, it signals forced sellers are exhausted. Remaining supply is in stronger hands, creating asymmetric upside. The holding period avoids whipsaws from continued fear oscillation.",
+      "falsification_criteria": "Buy-at-fear strategy with 20-bar holding period does not produce significant positive returns (p > alpha)",
+      "id": "refuted:5f3bbd2433031a42"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "ETH/USDT 1h shows 5-bar reversal (47% hit rate), enabling a contrarian strategy",
+      "hypothesis_id": "68e182734ca4fadd",
+      "evidence_ids": [
+        "08c82e7924a5",
+        "59aea71c25d7",
+        "794c9f7629f5",
+        "aa4fb4b6367a"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "reversal",
+        "mean_reversion",
+        "lookback_5"
+      ],
+      "rationale": "Detected 46.7% directional persistence over 5-bar windows. If structural, a contrarian strategy following the 5-bar trend should profit.",
+      "falsification_criteria": "Contrarian strategy based on 5-bar returns does not produce significant positive Sharpe (p > alpha)",
+      "id": "refuted:68e182734ca4fadd"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bearish on-chain divergence in SOL/USDT: price rising but on-chain volume declining signals speculative rally without real activity (158 events)",
+      "hypothesis_id": "69eabd3c667b7ac3",
+      "evidence_ids": [
+        "949d60d8ec47",
+        "9b99417fc6bb",
+        "d89a7963851d"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "sol_usdt",
+        "4h",
+        "composite",
+        "onchain_divergence",
+        "bearish",
+        "hold_20"
+      ],
+      "rationale": "Rising price without corresponding on-chain activity means the rally is driven by derivatives/leverage, not actual BTC movement. These rallies are fragile \u2014 there's no real demand backing the price increase.",
+      "falsification_criteria": "Short position on on-chain divergence with 20-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:69eabd3c667b7ac3"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT weekend volatility is 34% lower than weekday \u2014 weekend-skip strategy avoids drawdown variance",
+      "hypothesis_id": "6d37e70b513e246c",
+      "evidence_ids": [
+        "4ed5484c668b",
+        "5590534c7b4e",
+        "be10925b4118",
+        "ebaaced96113"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "composite",
+        "weekend_skip",
+        "calendar",
+        "hold_5"
+      ],
+      "rationale": "Traditional markets close on weekends, reducing institutional flow and liquidity. Weekend moves are retail-driven, lower volatility but also less predictable. Sitting out weekends preserves capital for higher-edge weekday trading.",
+      "falsification_criteria": "Strategy of holding only on weekdays does not produce better risk-adjusted returns than always-long baseline (p > alpha)",
+      "id": "refuted:6d37e70b513e246c"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "ETH/USDT 1h returns show negative autocorrelation at lag 1, enabling a mean-reversion strategy",
+      "hypothesis_id": "78330496db415499",
+      "evidence_ids": [
+        "11333af69602",
+        "356a56302dae",
+        "806d561c9579",
+        "c7ded3daf021"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "autocorrelation",
+        "mean_reversion"
+      ],
+      "rationale": "Detected significant autocorrelation r=-0.024 at lag 1. If persistent, this implies predictable return patterns.",
+      "falsification_criteria": "Sharpe ratio of lag-1 contrarian strategy is not significantly different from zero (p > alpha)",
+      "id": "refuted:78330496db415499"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bearish multi-source confluence in ETH/USDT: greed + distribution + rally marks structural top (291 events)",
+      "hypothesis_id": "7e8c79b84702e912",
+      "evidence_ids": [
+        "2b9ec309c281",
+        "8ec46b94f339",
+        "f998825a3012"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "composite",
+        "regime_confluence",
+        "bearish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail greed \u2192 overleveraged, (2) on-chain volume falling \u2192 real activity doesn't support the price, (3) price at recent highs \u2192 maximum euphoria. The rally is built on leverage and sentiment, not real demand. Liquidation cascade is the likely resolution.",
+      "falsification_criteria": "Short position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:7e8c79b84702e912"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Miner capitulation recovery in SOL/USDT: hashrate recovering after >10% drop signals forced selling exhausted (27% win rate, 45 events)",
+      "hypothesis_id": "7eb079e4f2dfa2a0",
+      "evidence_ids": [
+        "2f0415c4c3a0",
+        "403e5d55bde2",
+        "be19959960ca"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "sol_usdt",
+        "4h",
+        "composite",
+        "miner_capitulation",
+        "onchain",
+        "hold_30"
+      ],
+      "rationale": "When hashrate drops significantly, unprofitable miners shut down and must sell BTC reserves to cover fixed costs (facilities, loans). This creates selling pressure. When hashrate recovers, the forced selling is over \u2014 a structural price floor forms. Buy signal is recovery, not the drop.",
+      "falsification_criteria": "Long position on hashrate recovery with 30-bar hold does not produce significant positive returns (p > alpha)",
+      "id": "refuted:7eb079e4f2dfa2a0"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT 1h returns show positive autocorrelation at lag 7, enabling a momentum strategy",
+      "hypothesis_id": "807e6f61a523e338",
+      "evidence_ids": [
+        "45388ed1ea80",
+        "a8643afb62f0",
+        "a9e26fad40d4",
+        "b6629bcd25ed"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "autocorrelation",
+        "momentum"
+      ],
+      "rationale": "Detected significant autocorrelation r=0.009 at lag 7. If persistent, this implies predictable return patterns.",
+      "falsification_criteria": "Sharpe ratio of lag-7 momentum strategy is not significantly different from zero (p > alpha)",
+      "id": "refuted:807e6f61a523e338"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish multi-source confluence in ETH/USDT: fear + accumulation + drawdown marks structural buying opportunity (54 events)",
+      "hypothesis_id": "80f9e2a8c6fff172",
+      "evidence_ids": [
+        "79623dccfe35",
+        "80db8baf2251",
+        "f5537bf5c6c8"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "composite",
+        "regime_confluence",
+        "bullish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail sentiment extreme fear \u2192 capitulation selling exhausted, (2) on-chain volume rising \u2192 large holders accumulating despite fear, (3) price at recent lows \u2192 maximum pain. Each source tells a different part of the same story. Together they identify moments where forced selling is exhausted and informed money is positioned.",
+      "falsification_criteria": "Long position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:80f9e2a8c6fff172"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish on-chain divergence in BTC/USDT: price falling but on-chain volume rising signals accumulation by large holders (27 events)",
+      "hypothesis_id": "8c4bedb2785cc43f",
+      "evidence_ids": [
+        "6d072ed2be6f",
+        "a47bb5e52d6a",
+        "ea6c593f48d3"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "4h",
+        "composite",
+        "onchain_divergence",
+        "bullish",
+        "hold_20"
+      ],
+      "rationale": "Declining price + rising on-chain volume means real BTC is moving to new wallets despite negative sentiment. This pattern reflects informed accumulation \u2014 large holders buying from panicking retail. Price follows on-chain activity.",
+      "falsification_criteria": "Long position on on-chain divergence with 20-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:8c4bedb2785cc43f"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "ETH/USDT 1h returns exhibit significant positive skew (0.06), enabling a skew-harvesting strategy",
+      "hypothesis_id": "8d66d256ef61d5ac",
+      "evidence_ids": [
+        "544ae8f6483c",
+        "8e5baa7f4194",
+        "a019c1ce8af9",
+        "f9fa7824dbe9"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "skew",
+        "positive"
+      ],
+      "rationale": "Return distribution shows positive skew = 0.060. If persistent, this represents a structural edge: buy dips and hold for asymmetric upside.",
+      "falsification_criteria": "Strategy exploiting positive skew does not produce significant positive Sharpe (p > alpha)",
+      "id": "refuted:8d66d256ef61d5ac"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "ETH/USDT weekend volatility is 18% lower than weekday \u2014 weekend-skip strategy avoids drawdown variance",
+      "hypothesis_id": "938ea39458c6af66",
+      "evidence_ids": [
+        "1efba0398a4f",
+        "60964dec09ee",
+        "8134fa494bc1",
+        "bd81696d2544"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "composite",
+        "weekend_skip",
+        "calendar",
+        "hold_5"
+      ],
+      "rationale": "Traditional markets close on weekends, reducing institutional flow and liquidity. Weekend moves are retail-driven, lower volatility but also less predictable. Sitting out weekends preserves capital for higher-edge weekday trading.",
+      "falsification_criteria": "Strategy of holding only on weekdays does not produce better risk-adjusted returns than always-long baseline (p > alpha)",
+      "id": "refuted:938ea39458c6af66"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "ETH/USDT 1h shows 10-bar reversal (48% hit rate), enabling a contrarian strategy",
+      "hypothesis_id": "98b66bc4f593be22",
+      "evidence_ids": [
+        "5016ea730673",
+        "a80f870d41ba",
+        "bbe7d9c3c9e7",
+        "e9df4bb229fa"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "reversal",
+        "mean_reversion",
+        "lookback_10"
+      ],
+      "rationale": "Detected 47.6% directional persistence over 10-bar windows. If structural, a contrarian strategy following the 10-bar trend should profit.",
+      "falsification_criteria": "Contrarian strategy based on 10-bar returns does not produce significant positive Sharpe (p > alpha)",
+      "id": "refuted:98b66bc4f593be22"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish multi-source confluence in ETH/USDT: fear + accumulation + drawdown marks structural buying opportunity (107 events)",
+      "hypothesis_id": "a756fc1d68cb9a16",
+      "evidence_ids": [
+        "15097a95f684",
+        "46890819aed7",
+        "c6d1481cf353",
+        "e7c7b74e3c66"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "composite",
+        "regime_confluence",
+        "bullish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail sentiment extreme fear \u2192 capitulation selling exhausted, (2) on-chain volume rising \u2192 large holders accumulating despite fear, (3) price at recent lows \u2192 maximum pain. Each source tells a different part of the same story. Together they identify moments where forced selling is exhausted and informed money is positioned.",
+      "falsification_criteria": "Long position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:a756fc1d68cb9a16"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "ETH/USDT reverts to 50-period mean after extreme deviations (|z| > 2.0) within 25 periods",
+      "hypothesis_id": "a8ffe09b9f946ee1",
+      "evidence_ids": [
+        "7391225bc532",
+        "8ee550892922",
+        "c480e31373f3",
+        "fd810c2eb68b"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "mean_reversion",
+        "ma_50"
+      ],
+      "rationale": "Observed 93% reversion rate across 7608 extreme events. If structural, a mean-reversion strategy should capture this.",
+      "falsification_criteria": "Buy-the-dip (z < -2) / sell-the-spike (z > 2) strategy does not produce significant positive returns (p > alpha)",
+      "id": "refuted:a8ffe09b9f946ee1"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bearish on-chain divergence in ETH/USDT: price rising but on-chain volume declining signals speculative rally without real activity (89 events)",
+      "hypothesis_id": "abb54036285be6e7",
+      "evidence_ids": [
+        "262a81f2b679",
+        "569a4acc375c",
+        "878266d532ba"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "4h",
+        "composite",
+        "onchain_divergence",
+        "bearish",
+        "hold_20"
+      ],
+      "rationale": "Rising price without corresponding on-chain activity means the rally is driven by derivatives/leverage, not actual BTC movement. These rallies are fragile \u2014 there's no real demand backing the price increase.",
+      "falsification_criteria": "Short position on on-chain divergence with 20-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:abb54036285be6e7"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish on-chain divergence in ETH/USDT: price falling but on-chain volume rising signals accumulation by large holders (39 events)",
+      "hypothesis_id": "ae7776852bb43870",
+      "evidence_ids": [
+        "9eed1a5379b6",
+        "db9aa00f739f",
+        "fbfd5845b6b9"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "composite",
+        "onchain_divergence",
+        "bullish",
+        "hold_20"
+      ],
+      "rationale": "Declining price + rising on-chain volume means real BTC is moving to new wallets despite negative sentiment. This pattern reflects informed accumulation \u2014 large holders buying from panicking retail. Price follows on-chain activity.",
+      "falsification_criteria": "Long position on on-chain divergence with 20-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:ae7776852bb43870"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish on-chain divergence in ETH/USDT: price falling but on-chain volume rising signals accumulation by large holders (100 events)",
+      "hypothesis_id": "b49a93a5e2a30b08",
+      "evidence_ids": [
+        "250a323d12e5",
+        "782ac66fa4e9",
+        "8b7046454d6b"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "4h",
+        "composite",
+        "onchain_divergence",
+        "bullish",
+        "hold_20"
+      ],
+      "rationale": "Declining price + rising on-chain volume means real BTC is moving to new wallets despite negative sentiment. This pattern reflects informed accumulation \u2014 large holders buying from panicking retail. Price follows on-chain activity.",
+      "falsification_criteria": "Long position on on-chain divergence with 20-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:b49a93a5e2a30b08"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT reverts to 100-period mean after extreme deviations (|z| > 2.0) within 50 periods",
+      "hypothesis_id": "b5abd14ebd2a139d",
+      "evidence_ids": [
+        "0d7eaeef34ac",
+        "3506aaaf5899",
+        "70c5d3ce41a7",
+        "fb3d33cc091e"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "mean_reversion",
+        "ma_100"
+      ],
+      "rationale": "Observed 94% reversion rate across 10954 extreme events. If structural, a mean-reversion strategy should capture this.",
+      "falsification_criteria": "Buy-the-dip (z < -2) / sell-the-spike (z > 2) strategy does not produce significant positive returns (p > alpha)",
+      "id": "refuted:b5abd14ebd2a139d"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "SOL/USDT weekend volatility is 19% lower than weekday \u2014 weekend-skip strategy avoids drawdown variance",
+      "hypothesis_id": "b607e0a6de02eda2",
+      "evidence_ids": [
+        "08e6089174b6",
+        "98f20cdc602b",
+        "da291f4ab843"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "sol_usdt",
+        "4h",
+        "composite",
+        "weekend_skip",
+        "calendar",
+        "hold_5"
+      ],
+      "rationale": "Traditional markets close on weekends, reducing institutional flow and liquidity. Weekend moves are retail-driven, lower volatility but also less predictable. Sitting out weekends preserves capital for higher-edge weekday trading.",
+      "falsification_criteria": "Strategy of holding only on weekdays does not produce better risk-adjusted returns than always-long baseline (p > alpha)",
+      "id": "refuted:b607e0a6de02eda2"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT 1h returns show negative autocorrelation at lag 2, enabling a mean-reversion strategy",
+      "hypothesis_id": "bc0b2e817db369dc",
+      "evidence_ids": [
+        "4cc0e3e19796",
+        "61c491cf7942",
+        "ae7ca48df110",
+        "efce150f3c8d"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "autocorrelation",
+        "mean_reversion"
+      ],
+      "rationale": "Detected significant autocorrelation r=-0.038 at lag 2. If persistent, this implies predictable return patterns.",
+      "falsification_criteria": "Sharpe ratio of lag-2 contrarian strategy is not significantly different from zero (p > alpha)",
+      "id": "refuted:bc0b2e817db369dc"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Extreme fear (FNG<25) during drawdown in BTC/USDT marks capitulation \u2014 buying and holding 20 bars yields positive returns (73% win rate across 15 events)",
+      "hypothesis_id": "c2497ab80b7d07fe",
+      "evidence_ids": [
+        "3f8d874481a9",
+        "54299a189e93",
+        "a466d6861aa2"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "4h",
+        "composite",
+        "fear_capitulation",
+        "sentiment",
+        "hold_20"
+      ],
+      "rationale": "Extreme fear reflects retail panic. Combined with significant drawdown, it signals forced sellers are exhausted. Remaining supply is in stronger hands, creating asymmetric upside. The holding period avoids whipsaws from continued fear oscillation.",
+      "falsification_criteria": "Buy-at-fear strategy with 20-bar holding period does not produce significant positive returns (p > alpha)",
+      "id": "refuted:c2497ab80b7d07fe"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT 1h returns show negative autocorrelation at lag 1, enabling a mean-reversion strategy",
+      "hypothesis_id": "c3e748fc90eda3c8",
+      "evidence_ids": [
+        "47e427c1f71b",
+        "8f9d98a9bd77",
+        "d60ac5d38453",
+        "f10ac0775430"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "autocorrelation",
+        "mean_reversion"
+      ],
+      "rationale": "Detected significant autocorrelation r=-0.036 at lag 1. If persistent, this implies predictable return patterns.",
+      "falsification_criteria": "Sharpe ratio of lag-1 contrarian strategy is not significantly different from zero (p > alpha)",
+      "id": "refuted:c3e748fc90eda3c8"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "ETH/USDT 1h returns show positive autocorrelation at lag 10, enabling a momentum strategy",
+      "hypothesis_id": "c4cfe077f9aec5c3",
+      "evidence_ids": [
+        "2cff35ccd15b",
+        "51e2b1b00120",
+        "6e440033ad66",
+        "c600c63ed7a9"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "autocorrelation",
+        "momentum"
+      ],
+      "rationale": "Detected significant autocorrelation r=0.009 at lag 10. If persistent, this implies predictable return patterns.",
+      "falsification_criteria": "Sharpe ratio of lag-10 momentum strategy is not significantly different from zero (p > alpha)",
+      "id": "refuted:c4cfe077f9aec5c3"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish multi-source confluence in BTC/USDT: fear + accumulation + drawdown marks structural buying opportunity (146 events)",
+      "hypothesis_id": "c57fd468a2637e28",
+      "evidence_ids": [
+        "0a8caa73582e",
+        "9ea0bf9592d6",
+        "c3bb261c7e1c",
+        "f19dff83c0d9"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "composite",
+        "regime_confluence",
+        "bullish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail sentiment extreme fear \u2192 capitulation selling exhausted, (2) on-chain volume rising \u2192 large holders accumulating despite fear, (3) price at recent lows \u2192 maximum pain. Each source tells a different part of the same story. Together they identify moments where forced selling is exhausted and informed money is positioned.",
+      "falsification_criteria": "Long position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:c57fd468a2637e28"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bearish multi-source confluence in BTC/USDT: greed + distribution + rally marks structural top (126 events)",
+      "hypothesis_id": "c6391e8b88005a76",
+      "evidence_ids": [
+        "04062c664890",
+        "a9bba4b710b8",
+        "d327e51921a1"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "4h",
+        "composite",
+        "regime_confluence",
+        "bearish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail greed \u2192 overleveraged, (2) on-chain volume falling \u2192 real activity doesn't support the price, (3) price at recent highs \u2192 maximum euphoria. The rally is built on leverage and sentiment, not real demand. Liquidation cascade is the likely resolution.",
+      "falsification_criteria": "Short position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:c6391e8b88005a76"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT/ETH/USDT spread reverts to mean after extreme deviations (87% reversion rate, 50-period window)",
+      "hypothesis_id": "c82f662c850c340a",
+      "evidence_ids": [
+        "1321a3c7d266",
+        "6df8fe690b6d",
+        "7f536ebd8c99",
+        "f2586c194e7c"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "eth_usdt",
+        "1h",
+        "spread",
+        "pairs_trading",
+        "window_50"
+      ],
+      "rationale": "The price ratio of BTC/USDT to ETH/USDT mean-reverts because both assets share common market factors. Extremes reflect temporary dislocations.",
+      "falsification_criteria": "Spread mean-reversion strategy (long underperformer, short outperformer at |z| > 1.5) does not produce significant positive Sharpe (p > alpha)",
+      "id": "refuted:c82f662c850c340a"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT 1h shows volatility clustering (|r| autocorr=0.312), enabling a vol-scaled position strategy",
+      "hypothesis_id": "ccddfd657db35c59",
+      "evidence_ids": [
+        "0e4521b922c1",
+        "23546d5d39c2",
+        "bd920e73e296",
+        "fffc016f8976"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "volatility_clustering",
+        "vol_scaling"
+      ],
+      "rationale": "Absolute returns show strong autocorrelation (0.312), meaning high volatility periods persist. Reducing position size after vol spikes and increasing after calm periods should improve risk-adjusted returns.",
+      "falsification_criteria": "Vol-scaled strategy does not produce significantly better Sharpe than buy-and-hold (p > alpha)",
+      "id": "refuted:ccddfd657db35c59"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish on-chain divergence in BTC/USDT: price falling but on-chain volume rising signals accumulation by large holders (13 events)",
+      "hypothesis_id": "ce1596a6beaf8613",
+      "evidence_ids": [
+        "8d843d2c8036",
+        "a8eb380cb304",
+        "d3462a6e85b0"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "composite",
+        "onchain_divergence",
+        "bullish",
+        "hold_20"
+      ],
+      "rationale": "Declining price + rising on-chain volume means real BTC is moving to new wallets despite negative sentiment. This pattern reflects informed accumulation \u2014 large holders buying from panicking retail. Price follows on-chain activity.",
+      "falsification_criteria": "Long position on on-chain divergence with 20-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:ce1596a6beaf8613"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish multi-source confluence in ETH/USDT: fear + accumulation + drawdown marks structural buying opportunity (40 events)",
+      "hypothesis_id": "ce7ebe68a9d1bc4d",
+      "evidence_ids": [
+        "821a0411360c",
+        "9c8f681c1293",
+        "b462bb6b71f9"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "4h",
+        "composite",
+        "regime_confluence",
+        "bullish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail sentiment extreme fear \u2192 capitulation selling exhausted, (2) on-chain volume rising \u2192 large holders accumulating despite fear, (3) price at recent lows \u2192 maximum pain. Each source tells a different part of the same story. Together they identify moments where forced selling is exhausted and informed money is positioned.",
+      "falsification_criteria": "Long position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:ce7ebe68a9d1bc4d"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT weekend volatility is 33% lower than weekday \u2014 weekend-skip strategy avoids drawdown variance",
+      "hypothesis_id": "d115f200e1705747",
+      "evidence_ids": [
+        "464ff97717bb",
+        "63cf699f95b1",
+        "7eef9f813f8d",
+        "e6849540799c"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "composite",
+        "weekend_skip",
+        "calendar",
+        "hold_5"
+      ],
+      "rationale": "Traditional markets close on weekends, reducing institutional flow and liquidity. Weekend moves are retail-driven, lower volatility but also less predictable. Sitting out weekends preserves capital for higher-edge weekday trading.",
+      "falsification_criteria": "Strategy of holding only on weekdays does not produce better risk-adjusted returns than always-long baseline (p > alpha)",
+      "id": "refuted:d115f200e1705747"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Extreme fear (FNG<25) during drawdown in BTC/USDT marks capitulation \u2014 buying and holding 20 bars yields positive returns (100% win rate across 11 events)",
+      "hypothesis_id": "d56136b0cfd4c6f5",
+      "evidence_ids": [
+        "4a6412b0106d",
+        "e21cc41a9adf",
+        "e6b352cc1cf8"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "composite",
+        "fear_capitulation",
+        "sentiment",
+        "hold_20"
+      ],
+      "rationale": "Extreme fear reflects retail panic. Combined with significant drawdown, it signals forced sellers are exhausted. Remaining supply is in stronger hands, creating asymmetric upside. The holding period avoids whipsaws from continued fear oscillation.",
+      "falsification_criteria": "Buy-at-fear strategy with 20-bar holding period does not produce significant positive returns (p > alpha)",
+      "id": "refuted:d56136b0cfd4c6f5"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bearish multi-source confluence in BTC/USDT: greed + distribution + rally marks structural top (352 events)",
+      "hypothesis_id": "d8424064554a72fc",
+      "evidence_ids": [
+        "7c5499b719fa",
+        "86af2fc8d611",
+        "ea74226c9ac5"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "composite",
+        "regime_confluence",
+        "bearish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail greed \u2192 overleveraged, (2) on-chain volume falling \u2192 real activity doesn't support the price, (3) price at recent highs \u2192 maximum euphoria. The rally is built on leverage and sentiment, not real demand. Liquidation cascade is the likely resolution.",
+      "falsification_criteria": "Short position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:d8424064554a72fc"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "ETH/USDT reverts to 100-period mean after extreme deviations (|z| > 2.0) within 50 periods",
+      "hypothesis_id": "d9568797160968d4",
+      "evidence_ids": [
+        "61801a24ddc0",
+        "6e00a75e0a88",
+        "86e97838892d",
+        "beb710593c17"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.65,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "mean_reversion",
+        "ma_100"
+      ],
+      "rationale": "Observed 94% reversion rate across 8208 extreme events. If structural, a mean-reversion strategy should capture this.",
+      "falsification_criteria": "Buy-the-dip (z < -2) / sell-the-spike (z > 2) strategy does not produce significant positive returns (p > alpha)",
+      "id": "refuted:d9568797160968d4"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT 1h shows 5-bar reversal (46% hit rate), enabling a contrarian strategy",
+      "hypothesis_id": "dd8ac3bb9ee55d08",
+      "evidence_ids": [
+        "20edbdc10335",
+        "4fea08ce9645",
+        "5da5c3c1b29c",
+        "e292d9985bf1"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "reversal",
+        "mean_reversion",
+        "lookback_5"
+      ],
+      "rationale": "Detected 46.2% directional persistence over 5-bar windows. If structural, a contrarian strategy following the 5-bar trend should profit.",
+      "falsification_criteria": "Contrarian strategy based on 5-bar returns does not produce significant positive Sharpe (p > alpha)",
+      "id": "refuted:dd8ac3bb9ee55d08"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Extreme fear (FNG<25) during drawdown in SOL/USDT marks capitulation \u2014 buying and holding 20 bars yields positive returns (100% win rate across 11 events)",
+      "hypothesis_id": "e1610c7e8f21a20d",
+      "evidence_ids": [
+        "3c2f96b41d8f",
+        "557d4615726f",
+        "5c8a36264fce"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "sol_usdt",
+        "1h",
+        "composite",
+        "fear_capitulation",
+        "sentiment",
+        "hold_20"
+      ],
+      "rationale": "Extreme fear reflects retail panic. Combined with significant drawdown, it signals forced sellers are exhausted. Remaining supply is in stronger hands, creating asymmetric upside. The holding period avoids whipsaws from continued fear oscillation.",
+      "falsification_criteria": "Buy-at-fear strategy with 20-bar holding period does not produce significant positive returns (p > alpha)",
+      "id": "refuted:e1610c7e8f21a20d"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Extreme greed (FNG>75) during rally in SOL/USDT marks euphoria \u2014 selling and holding 20 bars captures reversal (68% reversal rate across 47 events)",
+      "hypothesis_id": "e4042322dbb0575c",
+      "evidence_ids": [
+        "9ffbaa2eaa4d",
+        "b9e49ccb77b4",
+        "e8029694ca6b"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "sol_usdt",
+        "1h",
+        "composite",
+        "greed_euphoria",
+        "sentiment",
+        "hold_20"
+      ],
+      "rationale": "Extreme greed during extended rally reflects overleveraged positioning. Marginal buyers exhausted, liquidation cascades become likely. Short exposure profits from the inevitable deleveraging.",
+      "falsification_criteria": "Sell-at-greed strategy with 20-bar holding period does not produce significant negative returns for the asset (p > alpha)",
+      "id": "refuted:e4042322dbb0575c"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT 1h shows 10-bar reversal (47% hit rate), enabling a contrarian strategy",
+      "hypothesis_id": "e48f65d95a229c1b",
+      "evidence_ids": [
+        "2bd3566581d1",
+        "78c14b969c12",
+        "834ad787cc5e",
+        "b5cc84426d37"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "reversal",
+        "mean_reversion",
+        "lookback_10"
+      ],
+      "rationale": "Detected 47.0% directional persistence over 10-bar windows. If structural, a contrarian strategy following the 10-bar trend should profit.",
+      "falsification_criteria": "Contrarian strategy based on 10-bar returns does not produce significant positive Sharpe (p > alpha)",
+      "id": "refuted:e48f65d95a229c1b"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bearish on-chain divergence in ETH/USDT: price rising but on-chain volume declining signals speculative rally without real activity (12 events)",
+      "hypothesis_id": "e6d000c0c0a13016",
+      "evidence_ids": [
+        "00234fcbe16d",
+        "64a89b0a8bc7",
+        "87db77a24cf2"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "1h",
+        "composite",
+        "onchain_divergence",
+        "bearish",
+        "hold_20"
+      ],
+      "rationale": "Rising price without corresponding on-chain activity means the rally is driven by derivatives/leverage, not actual BTC movement. These rallies are fragile \u2014 there's no real demand backing the price increase.",
+      "falsification_criteria": "Short position on on-chain divergence with 20-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:e6d000c0c0a13016"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Extreme fear (FNG<25) during drawdown in ETH/USDT marks capitulation \u2014 buying and holding 20 bars yields positive returns (47% win rate across 15 events)",
+      "hypothesis_id": "ea6282b040937bc0",
+      "evidence_ids": [
+        "9871da133d76",
+        "9f34de564605",
+        "d61e0b9772ec"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "4h",
+        "composite",
+        "fear_capitulation",
+        "sentiment",
+        "hold_20"
+      ],
+      "rationale": "Extreme fear reflects retail panic. Combined with significant drawdown, it signals forced sellers are exhausted. Remaining supply is in stronger hands, creating asymmetric upside. The holding period avoids whipsaws from continued fear oscillation.",
+      "falsification_criteria": "Buy-at-fear strategy with 20-bar holding period does not produce significant positive returns (p > alpha)",
+      "id": "refuted:ea6282b040937bc0"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT exhibits negative drift in last 3 days of month (-0.116% per bar vs rest, n=252) \u2014 short EOM strategy",
+      "hypothesis_id": "ecef5efe21155999",
+      "evidence_ids": [
+        "bffb10d376b2",
+        "c822058d27a1",
+        "d2e347759f4c"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "4h",
+        "composite",
+        "end_of_month",
+        "calendar",
+        "negative",
+        "hold_18"
+      ],
+      "rationale": "Institutional rebalancing at month-end forces position trimming on outperforming/volatile assets to maintain target allocations. Crypto's high volatility makes it a frequent target of these rebalancing flows. The effect is causally grounded in TradFi accounting cycles, not statistical accident.",
+      "falsification_criteria": "Short-EOM strategy (last 3 days of month) does not produce significant returns vs always-flat baseline (p > alpha)",
+      "id": "refuted:ecef5efe21155999"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "BTC/USDT 1h returns show positive autocorrelation at lag 10, enabling a momentum strategy",
+      "hypothesis_id": "f3b63a81ac804094",
+      "evidence_ids": [
+        "1e3cc7557bb0",
+        "22a1f51b548a",
+        "d0d1d7e6ce45",
+        "d7000cd23d02"
+      ],
+      "contradiction_count": 2,
+      "confidence": 0.8500000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "autocorrelation",
+        "momentum"
+      ],
+      "rationale": "Detected significant autocorrelation r=0.012 at lag 10. If persistent, this implies predictable return patterns.",
+      "falsification_criteria": "Sharpe ratio of lag-10 momentum strategy is not significantly different from zero (p > alpha)",
+      "id": "refuted:f3b63a81ac804094"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "ETH/USDT weekend volatility is 28% lower than weekday \u2014 weekend-skip strategy avoids drawdown variance",
+      "hypothesis_id": "f5649c232378be12",
+      "evidence_ids": [
+        "1233835b08c9",
+        "43e2b05fc8ce",
+        "d0386e181309"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "eth_usdt",
+        "4h",
+        "composite",
+        "weekend_skip",
+        "calendar",
+        "hold_5"
+      ],
+      "rationale": "Traditional markets close on weekends, reducing institutional flow and liquidity. Weekend moves are retail-driven, lower volatility but also less predictable. Sitting out weekends preserves capital for higher-edge weekday trading.",
+      "falsification_criteria": "Strategy of holding only on weekdays does not produce better risk-adjusted returns than always-long baseline (p > alpha)",
+      "id": "refuted:f5649c232378be12"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Extreme greed (FNG>75) during rally in BTC/USDT marks euphoria \u2014 selling and holding 20 bars captures reversal (40% reversal rate across 42 events)",
+      "hypothesis_id": "f948dec6d8efbe37",
+      "evidence_ids": [
+        "2ea79376f2df",
+        "e263b72096cc",
+        "eb15fce77953"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "1h",
+        "composite",
+        "greed_euphoria",
+        "sentiment",
+        "hold_20"
+      ],
+      "rationale": "Extreme greed during extended rally reflects overleveraged positioning. Marginal buyers exhausted, liquidation cascades become likely. Short exposure profits from the inevitable deleveraging.",
+      "falsification_criteria": "Sell-at-greed strategy with 20-bar holding period does not produce significant negative returns for the asset (p > alpha)",
+      "id": "refuted:f948dec6d8efbe37"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Bullish multi-source confluence in BTC/USDT: fear + accumulation + drawdown marks structural buying opportunity (39 events)",
+      "hypothesis_id": "f9e6778d3e13be3a",
+      "evidence_ids": [
+        "425d57bbe03f",
+        "5342c0155fdf",
+        "8b1e79c68725"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "btc_usdt",
+        "4h",
+        "composite",
+        "regime_confluence",
+        "bullish",
+        "hold_30"
+      ],
+      "rationale": "Three independent causal channels converge: (1) retail sentiment extreme fear \u2192 capitulation selling exhausted, (2) on-chain volume rising \u2192 large holders accumulating despite fear, (3) price at recent lows \u2192 maximum pain. Each source tells a different part of the same story. Together they identify moments where forced selling is exhausted and informed money is positioned.",
+      "falsification_criteria": "Long position on multi-source confluence with 30-bar hold does not produce significant returns (p > alpha)",
+      "id": "refuted:f9e6778d3e13be3a"
+    },
+    {
+      "node_type": "claim",
+      "status": "refuted",
+      "trust": "tested_refutation",
+      "claim": "Extreme greed (FNG>75) during rally in SOL/USDT marks euphoria \u2014 selling and holding 20 bars captures reversal (67% reversal rate across 49 events)",
+      "hypothesis_id": "fab963ee35dbecf5",
+      "evidence_ids": [
+        "67f7c27802df",
+        "94199547eb00",
+        "b8ef2dedebdc"
+      ],
+      "contradiction_count": 0,
+      "confidence": 0.6000000000000001,
+      "domain": "crypto",
+      "tags": [
+        "sol_usdt",
+        "4h",
+        "composite",
+        "greed_euphoria",
+        "sentiment",
+        "hold_20"
+      ],
+      "rationale": "Extreme greed during extended rally reflects overleveraged positioning. Marginal buyers exhausted, liquidation cascades become likely. Short exposure profits from the inevitable deleveraging.",
+      "falsification_criteria": "Sell-at-greed strategy with 20-bar holding period does not produce significant negative returns for the asset (p > alpha)",
+      "id": "refuted:fab963ee35dbecf5"
+    }
+  ],
+  "edges": []
+}

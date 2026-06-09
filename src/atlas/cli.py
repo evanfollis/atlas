@@ -5,6 +5,7 @@ from pathlib import Path
 
 import click
 
+from atlas.graph_backfill import backfill_falsified_claims
 from atlas.models.events import EventType, SessionEvent
 from atlas.models.evidence import Evidence, EvidenceClass, EvidenceDirection, EvidenceQuality
 from atlas.models.experiment import Experiment, ExperimentStatus
@@ -425,6 +426,19 @@ def graph_show() -> None:
     click.echo(g.display())
 
 
+@graph.command("backfill-falsified")
+def graph_backfill_falsified() -> None:
+    """Project existing falsified hypotheses into the causal graph."""
+    stats = backfill_falsified_claims(_store, get_graph_store())
+    click.echo(
+        "Backfilled falsified claims: "
+        f"{stats['added']} added, {stats['updated']} updated, "
+        f"{stats['skipped']} skipped; graph now has "
+        f"{stats['graph_nodes']} nodes, {stats['graph_edges']} edges "
+        f"({stats['refuted_nodes']} refuted)."
+    )
+
+
 @graph.command("primitive")
 @click.argument("primitive_id")
 def graph_primitive(primitive_id: str) -> None:
@@ -460,7 +474,9 @@ def status() -> None:
 
     gs = get_graph_store()
     g = gs.load()
-    click.echo(f"\nCausal graph:  {g.node_count} primitives, {g.edge_count} edges")
+    counts = g.status_counts()
+    count_text = ", ".join(f"{v} {k}" for k, v in sorted(counts.items())) or "empty"
+    click.echo(f"\nCausal graph:  {g.node_count} nodes ({count_text}), {g.edge_count} edges")
 
     hypotheses = _list_objs("hypotheses")
     by_status = {}
