@@ -2,12 +2,12 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-06-11T02-21-11Z
+updated: 2026-06-11T16-00-00Z
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-06-11T02:21Z — reflection pass (12h). **4 commits NOT pushed to origin/main** (b0df455, 8249acc, c6d7288, 6a7e266) — URGENT filed (`runtime/.handoff/URGENT-atlas-unpushed-commits-3rd-cycle.md`); 3 consecutive reflections, carry-forward rule triggered. Evidence 244→247 (3 weak records added by 3 non-skipping graph-gap hypotheses). **Diagnostic resolved**: the 3 non-skipping hypotheses (13aac1faf, 2a58c3f4, 8c19e8b9) DO run experiments but produce weak-only evidence → continue. Not freshness-gated. 2 skipping hypotheses (b612deba, dd50f9b9) still fail claim-parse → `no_claim_faithful_dataset` every cycle. S3-P2 gate at 408 consecutive empty cycles — permanently blind.
+**Last updated**: 2026-06-11T16:00Z — attended session. **URGENT RESOLVED**: all 4 commits pushed to origin/main (`831ee13..6a7e266`); `git rev-list origin/main...HEAD` = `0 0` in sync. Consumed `URGENT-atlas-unpushed-commits-3rd-cycle.md` removed. — **ROOT-CAUSE of the continue-treadmill (supersedes "weak-only evidence" symptom note)**: ADR-0035 delivered the *map* (69 refuted nodes = "what cannot hold") but the *generation* half is **semantic theater**. `from_graph_gaps()` emits a prose confounder-search claim ("the refuted claim failed because of an unmodeled regime/confounder…") but **no execution path conditions on any regime or controls any confounder** — the backtest only consumes an unconditional position series (`backtest.py`). So each such hypothesis either fails claim-parse → `no_claim_faithful_dataset` skip, or re-runs the *identical unconditional* strategy on already-tested data → weak evidence → `continue` forever. The claim asserts conditioning the code never performs (violates "statistical claims must be honest / no semantic theater"). **This is the real blocker, and it is a methodology fork awaiting principal direction** (build real regime-conditioning execution | remove the theater + honest-empty until funding/OI expansion | forward-prediction ledger). See `CAUSAL_LOOP_AUDIT.md` Q3/Q5. S3-P2 gate permanently blind (408 empty cycles); a consequence of this fork, not separately fixable.
 
 **Previous (2026-06-10T14:20Z)**: 3 commits not pushed; evidence frozen at 244; 2nd consecutive push-blocker; loop idle.
 
