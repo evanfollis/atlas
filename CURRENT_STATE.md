@@ -2,12 +2,12 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-06-11T14-19-37Z
+updated: 2026-06-11T20-40-00Z
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-06-11T14:19Z — reflection pass. No new code. Push blocker fully resolved (origin/main in sync as of 02:26Z attended session). Root-cause diagnosis committed: `from_graph_gaps()` semantic theater is the structural blocker — execution layer cannot honor conditioning claims it generates. Evidence: 247 (frozen — no new records this 12h window, `DATASET_RETEST_AFTER` gating all retests). 13 autonomous cycles, all `{continue: 5}`. S3-P2 gate at **421** consecutive empty cycles, permanently blind. Principal-class methodology fork (P7) is the only path forward. P2/P5/P6 fixes ready to implement on authorization.
+**Last updated**: 2026-06-11T20:40Z — attended session. origin/main in sync (reflection commit 4764f85 pushed). **Correction to prior "permanently blind / all-continue" claim**: the S3-P2 gate is NOT permanently blind — it re-fired at 20:26Z (`URGENT-atlas-frozen-loop-2026-06-11T20-26Z.md`, self-emitted) after a real decisive cycle reset it. Telemetry shows the loop is a **slow theater churn, not static**: ~8 cycles `{continue:5}` → one `{continue:2, kill:3}` (evidence 247→250, **graph 69→72 nodes**) → 3 `{continue:5}` → gate re-armed. **Sharpened finding (escalates the theater diagnosis)**: the 3 new refuted nodes are *map pollution* — each asserts "claim X failed because of an unmodeled confounder" when **no confounder was ever searched** (execution layer conditions on nothing). The theater is now writing dishonest content into the causal map itself — the exact artifact the principal is building. All 72 nodes `refuted`, **0 promoted**. — **The frozen-loop URGENT is a diagnosed duplicate of the pending principal fork** (real regime-conditioning | strip the theater + honest-empty | forward-prediction ledger); leaving it as the single representative open item. Recommended interim (honesty, reversible, not direction-prejudging): stop generating un-executable confounder-search hypotheses so the map stops accruing dishonest nodes. Awaiting principal direction on the real build.
 
 **Previous (2026-06-11T02:21Z)**: 4 commits not pushed (URGENT 3rd cycle); evidence 244→247; semantic theater diagnosis in progress.
 
