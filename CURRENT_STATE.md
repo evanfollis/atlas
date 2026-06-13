@@ -2,14 +2,14 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-06-12T14-21-09Z
+updated: 2026-06-13T02-18-04Z
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-06-12T14:21Z — reflection pass. No attended sessions. 12 autonomous cycles ran (02:28Z–13:32Z), all identical: `{continue: 5}`, evidence=251, graph=72/3. `consecutive_empty_count` grew from 8 → 20 (S3-P2 gate correctly silent; `emitted_for_current_streak: true`). All issues from prior reflection carry forward. **Still unresolved**: (1) `URGENT-atlas-unpushed-commits-3rd-cycle.md` stale in handoff inbox — push resolved Jun 11 but file not deleted (3rd flag). (2) `graph/causal_graph.json` working-tree dirty, never committed. (3) P2 (graph-gap save-order fix) at 5th+ consecutive reflection carry-forward — synthesis job should trigger URGENT per workspace escalation rule. Loop structurally idle pending P7 principal decision. Signal scan produces 22 signals/cycle but no new hypotheses are generated (pool saturated / all candidates deduplicated). All 72 nodes refuted, 0 promoted.
+**Last updated**: 2026-06-13T02:18Z — reflection pass. No attended sessions. Loop ran 2+ cycles this window, all identical: `{continue: 5}`, evidence=252 (+1 weak record). **New finding**: `graph/causal_graph.json` has 3 uncommitted runner-written nodes (confounder-search refuted hypotheses) in working tree — truth-source durability gap. **Still unresolved**: (1) `URGENT-atlas-unpushed-commits-3rd-cycle.md` stale in handoff inbox (4th flag). (2) P2 (graph-gap save-order) at 6th consecutive reflection carry-forward — synthesis job has not filed URGENT as required. (3) `URGENT-atlas-frozen-loop-2026-06-11T20-26Z.md` active, unacknowledged 30h+. (4) 2 CURRENT_STATE.md commits ahead of origin/main. (5) P7 principal decision still blocks all research progress. Loop at 24+ identical all-continue cycles.
 
-**Previous (2026-06-11T02:21Z)**: 4 commits not pushed (URGENT 3rd cycle); evidence 244→247; semantic theater diagnosis in progress.
+**Previous (2026-06-12T14:21Z)**: No attended sessions; 12 cycles all-continue; evidence 251; graph dirty (3 runner-written uncommitted nodes); P2 at 5th carry-forward.
 
 **Previous (2026-06-10T14:20Z)**: 3 commits not pushed; evidence frozen at 244; 2nd consecutive push-blocker; loop idle.
 
@@ -201,7 +201,7 @@ Session c5472d70 (Opus 4.7) resolved all 4 pending handoffs and closed both URGE
 - **Default exchange is Bitstamp (2026-04-19)**: Kraken caps OHLCV at ~720 bars regardless of `since` — below the 833-bar walk-forward minimum. Bitstamp provides 99K+ 1h bars via pagination.
 
 ## What the next agent must read first
-0. **LOOP STATE: RUNNING + STRUCTURALLY IDLE — updated 2026-06-12T14:21Z (reflection)**. **(a) No attended sessions in last 12h; 12 identical all-continue cycles. (b) consecutive_empty_count=20; S3-P2 gate emitted (emitted_for_current_streak=true), correctly silent for current streak. (c) Evidence frozen at 251; graph at 72 nodes/3 edges (working-tree dirty, uncommitted). (d) 3 of 5 hypotheses skip every cycle with `no_claim_faithful_dataset` (b612deba, dd50f9b9, ca0ac08294bcf551). (e) Signal scan produces 22 signals/cycle but generates zero new hypotheses — pool saturated. (f) STALE URGENT in inbox: `URGENT-atlas-unpushed-commits-3rd-cycle.md` (push resolved Jun 11, file not deleted — 3rd flag). (g) P2 carry-forward at 5th+ cycle — synthesis should file URGENT. (h) P7 principal decision blocks all research progress.** See CAUSAL_LOOP_AUDIT.md for causal chain.
+0. **LOOP STATE: RUNNING + STRUCTURALLY IDLE — updated 2026-06-13T02:18Z (reflection)**. **(a) No attended sessions this window; 2+ identical all-continue cycles. (b) consecutive_empty_count=22+; S3-P2 gate correctly silent (emitted_for_current_streak=true). (c) Evidence=252 (+1 weak). (d) 4 of 5 hypotheses skip every cycle with `no_claim_faithful_dataset` (b612deba, dd50f9b9, ca0ac08294bcf551, 23591746); only 761919e66bb663ad runs. (e) graph/causal_graph.json HAS 3 UNCOMMITTED NODES in working tree (runner-written confounder-search hypotheses) — commit before any checkout/reset. (f) STALE URGENT: `URGENT-atlas-unpushed-commits-3rd-cycle.md` (4th flag — delete it). (g) ACTIVE URGENT: `URGENT-atlas-frozen-loop-2026-06-11T20-26Z.md` — unacknowledged 30h+; P7 decision needed. (h) P2 carry-forward at 6th cycle — synthesis still has not filed URGENT.** See CAUSAL_LOOP_AUDIT.md for causal chain.
 1. **Test baseline**: 168. Run `.venv/bin/python -m pytest` before any commit.
 2. **P3 still deferred** (principal-class): 2 FORMULATED hypotheses reference excluded 4h timeframe — `_claim_is_permanently_infeasible` doesn't catch excluded timeframes. `cycle.top_up skipped_not_promotable: 5` confirms these remain blocked. No action without principal direction.
 3. **Migration merge-collapse** (5th carry-forward): `scripts/migrate_claim_hash.py` merge path discards non-claim fields. `--allow-merge` gate aborts on detection but merge-allowed behavior is untested. Add fixture with differing `rationale` fields.
