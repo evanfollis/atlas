@@ -9,6 +9,7 @@ reports/
 methodology.jsonl
 pending_revalidation.jsonl
 pending_revalidation.jsonl.done
+predictions.jsonl
 *.pyc
 .pytest_cache/
 .atlas/

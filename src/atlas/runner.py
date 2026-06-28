@@ -25,10 +25,12 @@ from atlas.models.events import EventType, SessionEvent
 from atlas.models.evidence import Evidence, EvidenceClass, EvidenceDirection, EvidenceQuality
 from atlas.models.experiment import Experiment, ExperimentStatus
 from atlas.models.hypothesis import Hypothesis, HypothesisStatus
+from atlas.models.prediction import Prediction, prediction_id
 from atlas.models.primitive import ReasoningPrimitive
 from atlas.models.session import CycleOutcome, CycleStatus, ResearchCycle
 from atlas.storage.event_store import EventStore
 from atlas.storage.graph_store import GraphStore
+from atlas.storage.prediction_store import PredictionStore
 from atlas.storage.state_store import StateStore
 from atlas.utils import claim_hash as _claim_hash
 
@@ -43,6 +45,11 @@ DEFAULT_UNIVERSE = [
     ("SOL/USDT", "1h"),
 ]
 DEFAULT_UNIVERSE_SET: set[tuple[str, str]] = set(DEFAULT_UNIVERSE)
+
+# Forward-prediction ledger (CAUSAL_LOOP_AUDIT.md Q5). Horizon for the
+# non-overlapping forward windows that detected signals are scored against.
+PREDICTION_HORIZON_DAYS = 7.0
+FEE_BPS = 26  # matches run_experiment's backtest fee (Kraken taker)
 
 # Tokens that mark a hypothesis as INFEASIBLE on this Hetzner server: the
 # named exchanges are either geo-blocked or only expose perp/funding feeds
@@ -133,6 +140,7 @@ class AutonomousRunner:
         self.alt_data = AlternativeData(cache_dir=base_dir / "data")
         self.events = EventStore(base_dir / "sessions")
         self.graph_store = GraphStore(base_dir / "graph")
+        self.predictions = PredictionStore(base_dir / "predictions.jsonl")
         self.methodology_log = base_dir / "methodology.jsonl"
 
     def _save_obj(self, kind: str, obj_id: str, data: dict) -> None:
@@ -1219,6 +1227,68 @@ class AutonomousRunner:
         )
         self.graph_store.save(graph)
 
+    def register_predictions(self, signal_results, now: datetime | None = None) -> dict:
+        """Register dated forward predictions for currently-detected signals.
+
+        Each detected pattern implies a forward forecast: net of fees, does it
+        predict forward returns? One prediction per (claim, horizon bucket) keeps
+        the hourly cycle idempotent and the windows non-overlapping; the scorer
+        (2b) resolves them against realized data once the window closes. This is
+        the un-exhaustible evidence path (CAUSAL_LOOP_AUDIT.md Q5) — it runs every
+        cycle regardless of whether the backtest hypothesis space is exhausted.
+        """
+        now = now or datetime.now(timezone.utc)
+        bucket, window_start, resolve = Prediction.forward_bucket(now, PREDICTION_HORIZON_DAYS)
+        existing = {p.id for p in self.predictions.all()}
+        registered = 0
+        seen: set[str] = set()
+        for symbol, timeframe, signals, _ in signal_results:
+            for signal in signals:
+                gen = COMPOSITE_GENERATORS.get(signal.method)
+                if gen:
+                    h = gen(signal, signal.symbol or symbol, signal.timeframe or timeframe)
+                else:
+                    h = from_signal(signal, symbol, timeframe)
+                if not h:
+                    continue
+                hid = _claim_hash(h.claim)
+                pid = prediction_id(hid, PREDICTION_HORIZON_DAYS, bucket)
+                if pid in seen or pid in existing:
+                    seen.add(pid)
+                    continue
+                seen.add(pid)
+                pred = Prediction(
+                    id=pid,
+                    hypothesis_id=hid,
+                    claim=h.claim,
+                    symbol=signal.symbol or symbol,
+                    timeframe=signal.timeframe or timeframe,
+                    strategy_tags=h.tags,
+                    horizon_days=PREDICTION_HORIZON_DAYS,
+                    bucket=bucket,
+                    window_start_ts=window_start,
+                    resolve_ts=resolve,
+                    asof_ts=now,
+                    statement=(
+                        f"Net of {FEE_BPS}bps, a strategy implied by '{h.claim[:70]}' shows "
+                        f"no significant edge over the {PREDICTION_HORIZON_DAYS:.0f}d forward "
+                        f"window {window_start:%Y-%m-%d}..{resolve:%Y-%m-%d}"
+                    ),
+                )
+                self.predictions.append(pred)
+                registered += 1
+        result = {
+            "registered": registered,
+            "bucket": bucket,
+            "window_start": window_start.isoformat(),
+            "resolve": resolve.isoformat(),
+            "open_total": self.predictions.count_open(),
+        }
+        if registered:
+            self._log_methodology({"phase": "prediction_registration", **result})
+        self._emit_telemetry("prediction.registered", details=result)
+        return result
+
     def run_cycle(self) -> dict:
         """Execute one complete research cycle."""
         log.info("=== Starting research cycle ===")
@@ -1228,6 +1298,16 @@ class AutonomousRunner:
         # Phase 1: Scan in-sample data for signals
         signal_results = self.scan_signals()
         cycle_report["signals_found"] = sum(len(s) for _, _, s, _ in signal_results)
+
+        # Forward-prediction ledger: register dated forward forecasts for the
+        # detected signals (idempotent per horizon bucket). Independent of the
+        # backtest path so it produces fresh evidence even when the hypothesis
+        # space is exhausted. Defensive try/except: a ledger bug must not break
+        # the research cycle.
+        try:
+            cycle_report["predictions"] = self.register_predictions(signal_results)
+        except Exception as exc:
+            log.warning("Prediction registration failed: %s", exc)
 
         # Phase 2: Generate hypotheses (with durable IDs and Bonferroni correction)
         hypotheses = self.generate_hypotheses(signal_results)

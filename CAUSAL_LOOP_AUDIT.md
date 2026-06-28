@@ -143,3 +143,22 @@ This also **side-steps the "is the gate miscalibrated?" question**: whether or n
 5. **ADR-0033 disposition** — its "park the loop" recommendation is superseded by the 2026-06-09 principal clarification; its load-bearing *facts* (exhausted generator, 0 promotions) stand. The general session / principal should reconcile the ADR text; this session does not unilaterally rewrite it.
 
 **Do not pause the runner** absent a concrete safety/cost issue (per handoff). Current cost is one Bitstamp scan/hour producing a structurally-empty cycle — cheap, but scientifically inert until at least (3a) lands and an ADR-class change breaks the deadlock.
+
+---
+
+## Implementation log & forward plan (2026-06-28 — principal: "strip theater → ledger")
+
+**Phase 1 — strip theater. DONE + DEPLOYED (commit ec8f4d0).** `from_graph_gaps()` no longer spawns confounder follow-ups from refuted nodes; `backfill_falsified_claims()` no longer projects `confounder_search`-tagged hypotheses. Pruned 4 dishonest nodes (graph 73→69 refuted, 4→0 edges); 5 FORMULATED confounder hypotheses → INFEASIBLE. Loop now emits honest `no_action`. Codex review filed.
+
+**Phase 2 — forward-prediction ledger. Staged 2a/2b/2c.**
+
+- **2a — register + store. DONE + DEPLOYED.** `models/prediction.py` (bucketed id, frozen spec, conservative null default, horizon validation), `storage/prediction_store.py` (append-only, dedup-on-read), `runner.register_predictions()` hooked into `run_cycle` after the scan, `prediction.registered` telemetry. Verified live: 22 forward predictions/cycle, idempotent per horizon bucket, windows fully forward. `predictions.jsonl` gitignored.
+
+- **2b — score → `live_observation` evidence. NEXT.** For each `predictions.list_due(now)` (status=open, `resolve_ts ≤ now`): fetch OHLCV covering `[window_start − warmup, resolve_ts]`; reconstruct the position series by replaying the **frozen** `strategy_tags` via `_build_signal_from_hypothesis` (build a lightweight `Hypothesis` from `claim`+`strategy_tags`); `run_backtest` on the **scored window only** `[window_start, resolve_ts]` at `fee_bps=26`; write an `Evidence(evidence_class=live_observation, experiment_id=prediction.id)` linked to `hypothesis_id`; set ONLY the resolution fields and `store.update()` (append). **Load-bearing guardrails (from codex review of the 2a model):**
+  - *Frozen-spec is enforced by the scorer, not the schema.* Replay only the snapshotted tags; read only `[window_start, resolve_ts]` for the scored returns (warm-up prefix may be read but must not be scored). Any re-detection/re-fit on the forward window voids the OOS-in-time claim.
+  - *Append-only discipline.* The scorer sets only resolution fields (`status`, `realized_*`, `brier_score`, `outcome`, `resolved_at`); it must never rewrite forecast fields. The store is last-write-wins, so a forecast-field mutation would silently corrupt the record.
+  - *Conservative quality mapping (the spurious-promotion guard).* A single 7d/168-bar window is mostly noise. Map realized → evidence quality conservatively; prefer a Brier-scored probabilistic directional forecast over a Sharpe-significance test. Expect the honest outcome to be `confirmed_null` + a calibration record, NOT promotions. Two lucky non-overlapping windows must not clear the gate's "≥2 distinct strong + ≥1 live_observation" — if the ledger starts promoting on current 1h features, suspect noise first; promotions need new feature space (funding/OI).
+
+- **2c — `atlas calibration` CLI. AFTER 2b.** Hit-rate / Brier across resolved predictions, per claim-type. Emit a distinct register/resolve telemetry split so "honest idle" is distinguishable from "honest productive-but-no-promotion."
+
+**Funding/OI feature expansion** (principal-chosen alt-data, no new creds) remains the Shape-4 follow-on once the ledger is producing calibration data — it is the feature space where a real forward edge (and thus a first promotion) is plausible.
