@@ -23,6 +23,15 @@ def backfill_falsified_claims(state: StateStore, graph_store: GraphStore) -> dic
             skipped += 1
             continue
 
+        # Confounder-search follow-ups were semantic theater: no execution path
+        # ever conditioned on a confounder, so a "falsified" one carries no
+        # honest tested knowledge. Never project it into the map (otherwise the
+        # per-cycle backfill keeps resurrecting pruned theater nodes). Stripped
+        # 2026-06-28 alongside from_graph_gaps; see CAUSAL_LOOP_AUDIT.md.
+        if "confounder_search" in (hypothesis.tags or []):
+            skipped += 1
+            continue
+
         evidence = evidence_by_hypothesis.get(hypothesis.id, [])
         evidence_ids = [e.id for e in evidence]
         contradiction_count = sum(

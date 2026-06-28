@@ -67,17 +67,53 @@ def test_backfill_falsified_claims_creates_refuted_nodes(tmp_path: Path) -> None
     assert graph.status_counts()["refuted"] == 1
 
 
-def test_graph_gaps_generate_followup_from_refuted_claim() -> None:
+def test_backfill_skips_confounder_search_theater(tmp_path: Path) -> None:
+    """Falsified confounder-search follow-ups must never enter the map.
+
+    They were semantic theater (no confounder was ever conditioned on), and the
+    per-cycle backfill would otherwise keep resurrecting pruned theater nodes.
+    """
+    state = StateStore(tmp_path / ".atlas")
+    graph_store = GraphStore(tmp_path / "graph")
+
+    honest = _falsified_hypothesis("h-honest")
+    theater = Hypothesis(
+        id="h-theater",
+        claim="The refuted claim 'X' failed because of an unmodeled confounder",
+        rationale="graph-gap follow-up",
+        falsification_criteria="conditioning does not change OOS evidence",
+        tags=["btc_usdt", "1h", "graph_gap", "refuted_claim", "confounder_search"],
+        status=HypothesisStatus.FALSIFIED,
+    )
+    for h in (honest, theater):
+        state.save("hypotheses", h.id, h.model_dump())
+        ev = _contradictory_evidence(h.id, f"exp-{h.id}")
+        state.save("evidence", ev.id, ev.model_dump())
+
+    stats = backfill_falsified_claims(state, graph_store)
+    graph = graph_store.load()
+
+    assert graph.node_count == 1
+    assert graph.nodes_by_status("refuted") == [f"refuted:{honest.id}"]
+    assert "refuted:h-theater" not in graph.g
+
+
+def test_graph_gaps_do_not_generate_followup_from_refuted_claim() -> None:
+    """Refuted claims are map content, not a source of new hypotheses.
+
+    Generating confounder-search follow-ups from refuted nodes was semantic
+    theater (no execution path conditions on a confounder). Stripped 2026-06-28
+    in favor of the forward-prediction ledger. A graph of only refuted roots
+    must yield zero gap hypotheses — the loop goes honestly idle instead of
+    conjuring claims it cannot test.
+    """
     graph = CausalGraph()
     h = _falsified_hypothesis()
     graph.add_refuted_hypothesis(h, ["ev-1"], contradiction_count=1)
 
     gaps = from_graph_gaps(graph)
 
-    assert len(gaps) == 1
-    assert "unmodeled market regime or confounder" in gaps[0].claim
-    assert "refuted_claim" in gaps[0].tags
-    assert gaps[0].parent_primitive_id == f"refuted:{h.id}"
+    assert gaps == []
 
 
 def test_runner_kill_adds_refuted_node(tmp_path: Path) -> None:
