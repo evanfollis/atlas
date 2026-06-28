@@ -110,3 +110,26 @@ def test_register_predictions_is_idempotent_across_cycles(tmp_path: Path) -> Non
     assert "autocorrelation" in pred.strategy_tags
     assert pred.status == "open"
     assert pred.window_start_ts > now
+
+
+def test_register_skips_unreplayable_methods(tmp_path: Path) -> None:
+    """Cross-asset/lead-lag/calendar/composite reconstruct as proxy or fallback,
+    not the actual claim — they must not be forward-scored until the spec
+    captures what they need."""
+    r = AutonomousRunner.__new__(AutonomousRunner)
+    r.predictions = PredictionStore(tmp_path / "predictions.jsonl")
+    r.methodology_log = tmp_path / "methodology.jsonl"
+    r._emit_telemetry = lambda *a, **k: None
+
+    now = datetime(2026, 6, 28, 12, 0, tzinfo=timezone.utc)
+    cross_asset = Signal(
+        description="spread reverts", method="cross_asset_spread", strength=0.5,
+        symbol="BTC/USDT", timeframe="1h", metadata={"partner": "ETH/USDT"},
+    )
+    signal_results = [("BTC/USDT", "1h", [_autocorr_signal(), cross_asset], None)]
+
+    result = r.register_predictions(signal_results, now=now)
+
+    assert result["registered"] == 1            # only the single-source signal
+    assert result["skipped_unreplayable"] == 1  # cross-asset deferred
+    assert all("pairs_trading" not in p.strategy_tags for p in r.predictions.all())

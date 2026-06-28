@@ -51,6 +51,26 @@ DEFAULT_UNIVERSE_SET: set[tuple[str, str]] = set(DEFAULT_UNIVERSE)
 PREDICTION_HORIZON_DAYS = 7.0
 FEE_BPS = 26  # matches run_experiment's backtest fee (Kraken taker)
 
+# Only register predictions whose strategy is fully encoded in the hypothesis
+# tags, so the 2b scorer can replay the frozen spec faithfully via
+# _build_signal_from_hypothesis from (symbol, timeframe, tags) alone. Excluded:
+# cross_asset_spread / lead_lag (their builder falls back to a single-symbol
+# proxy that does not represent the cross-asset claim) and the composite/
+# calendar generators (no tag-driven builder branch -> the generic-momentum
+# fallback, which is unrelated to e.g. a "weekend volatility" claim). Scoring a
+# proxy/fallback strategy would write meaningless live_observation evidence.
+# These are deferred until the Prediction spec captures what they need (e.g. the
+# partner series); see CAUSAL_LOOP_AUDIT.md §Implementation log.
+REPLAYABLE_METHODS = frozenset({
+    "autocorrelation_scan",
+    "rolling_vol_ratio",
+    "zscore_mean_reversion",
+    "volume_return_relationship",
+    "momentum_persistence",
+    "return_skew",
+    "volatility_clustering",
+})
+
 # Tokens that mark a hypothesis as INFEASIBLE on this Hetzner server: the
 # named exchanges are either geo-blocked or only expose perp/funding feeds
 # we don't ingest. Match against lowercase claim+tags. See ADR-0014 and
@@ -1241,14 +1261,17 @@ class AutonomousRunner:
         bucket, window_start, resolve = Prediction.forward_bucket(now, PREDICTION_HORIZON_DAYS)
         existing = {p.id for p in self.predictions.all()}
         registered = 0
+        skipped_unreplayable = 0
         seen: set[str] = set()
         for symbol, timeframe, signals, _ in signal_results:
             for signal in signals:
-                gen = COMPOSITE_GENERATORS.get(signal.method)
-                if gen:
-                    h = gen(signal, signal.symbol or symbol, signal.timeframe or timeframe)
-                else:
-                    h = from_signal(signal, symbol, timeframe)
+                # Only forward-score strategies that reconstruct faithfully from
+                # the frozen (symbol, timeframe, tags) spec. Proxy/fallback types
+                # would produce meaningless live_observation evidence.
+                if signal.method not in REPLAYABLE_METHODS:
+                    skipped_unreplayable += 1
+                    continue
+                h = from_signal(signal, symbol, timeframe)
                 if not h:
                     continue
                 hid = _claim_hash(h.claim)
@@ -1279,6 +1302,7 @@ class AutonomousRunner:
                 registered += 1
         result = {
             "registered": registered,
+            "skipped_unreplayable": skipped_unreplayable,
             "bucket": bucket,
             "window_start": window_start.isoformat(),
             "resolve": resolve.isoformat(),
