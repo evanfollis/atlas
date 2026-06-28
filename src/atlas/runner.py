@@ -1584,7 +1584,7 @@ class AutonomousRunner:
     # --------------------------------------------------------------------
 
     TELEMETRY_PATH = Path("/opt/workspace/runtime/.telemetry/events.jsonl")
-    HANDOFF_DIR = Path("/opt/workspace/runtime/.handoff")
+    SUPERVISOR_HANDOFF_DIR = Path("/opt/workspace/supervisor/handoffs/INBOX")
 
     def _escalation_state_path(self) -> Path:
         """Authoritative dedup state for the frozen-loop gate. Lives under
@@ -1755,12 +1755,12 @@ class AutonomousRunner:
         """Drop one URGENT handoff to general/atlas describing the streak.
         Dedup by glob — if any URGENT-atlas-frozen-loop-*.md exists, skip."""
         try:
-            self.HANDOFF_DIR.mkdir(parents=True, exist_ok=True)
-            existing = list(self.HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
+            self.SUPERVISOR_HANDOFF_DIR.mkdir(parents=True, exist_ok=True)
+            existing = list(self.SUPERVISOR_HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
             if existing:
                 return
             now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%MZ")
-            path = self.HANDOFF_DIR / f"URGENT-atlas-frozen-loop-{now_iso}.md"
+            path = self.SUPERVISOR_HANDOFF_DIR / f"URGENT-atlas-frozen-loop-{now_iso}.md"
             evidence_size = len(self.state.list_all("evidence"))
             body = (
                 "---\n"

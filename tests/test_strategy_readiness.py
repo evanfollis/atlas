@@ -90,7 +90,7 @@ def runner_with_telemetry(tmp_path: Path, monkeypatch) -> AutonomousRunner:
     telem = tmp_path / "telemetry" / "events.jsonl"
     telem.parent.mkdir()
     monkeypatch.setattr(AutonomousRunner, "TELEMETRY_PATH", telem)
-    monkeypatch.setattr(AutonomousRunner, "HANDOFF_DIR", tmp_path / "handoff")
+    monkeypatch.setattr(AutonomousRunner, "SUPERVISOR_HANDOFF_DIR", tmp_path / "handoff")
     return r
 
 
@@ -126,7 +126,7 @@ def test_escalation_fires_after_threshold(runner_with_telemetry):
     r._maybe_escalate_frozen_loop()
     types = _read_runner_event_types(r)
     assert types.count("cycle.escalated") == 1
-    handoffs = list(r.HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
+    handoffs = list(r.SUPERVISOR_HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
     assert len(handoffs) == 1
 
 
@@ -138,7 +138,7 @@ def test_escalation_idempotent_on_same_streak(runner_with_telemetry):
     types = _read_runner_event_types(r)
     assert types.count("cycle.escalated") == 1
     # Handoff dedup also: still exactly one URGENT file.
-    handoffs = list(r.HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
+    handoffs = list(r.SUPERVISOR_HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
     assert len(handoffs) == 1
 
 
@@ -158,7 +158,7 @@ def test_escalation_idempotent_when_streak_grows_past_threshold(runner_with_tele
     assert types.count("cycle.escalated") == 1, (
         "gate re-fired on a streak that never broke"
     )
-    handoffs = list(r.HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
+    handoffs = list(r.SUPERVISOR_HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
     assert len(handoffs) == 1
 
 
@@ -247,7 +247,7 @@ def test_escalation_idempotent_across_telemetry_rotation(runner_with_telemetry):
         "cycle.escalated event in *post-rotation* file means the gate re-fired "
         "after rotation hid the prior emission"
     )
-    handoffs = list(r.HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
+    handoffs = list(r.SUPERVISOR_HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
     assert len(handoffs) == 1
 
 
