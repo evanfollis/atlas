@@ -2,12 +2,14 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-07-09T02-18-25Z
+updated: 2026-07-09T14-17-56Z
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-07-09T02:18Z — reflection pass (idle window). **NO ATTENDED SESSIONS** (~270h since last attended, 2026-06-28T04:08Z). **23rd consecutive idle window.** Loop unchanged: `hypothesis_space_exhausted`, `evidence=253` frozen, `signals_found=22`, `skipped_not_promotable=5`, `consecutive_empty_count=610` (+12 this window). **BUCKET 2948 EXPIRED UNSCORED** — resolve_ts 2026-07-09T00:00:00Z passed; 20 predictions remain `status=open`; Phase 2b was never built; this causal data is forfeit unless retroactive scoring is explicitly authorized and built. **ACTIVE BUCKETS**: bucket 2949 (resolve 2026-07-16T00:00:00Z, 20 open), bucket 2950 (resolve 2026-07-23T00:00:00Z, 20 open). **`skipped_unreplayable: 2` every cycle** — 23rd window unresolved; now confirmed to affect bucket 2950 (not 2948). **LAG TAG GAP**: 40 predictions lack `lag_N` tags — 23rd carry-forward; scorer must use `re.search(r'lag (\d+)', claim)` fallback. **STALE URGENTS (23rd carry-forward)**: `URGENT-atlas-frozen-loop-2026-06-11T20-26Z.md` and `URGENT-atlas-unpushed-commits-3rd-cycle.md` — both deletable. **BRANCH 2 AHEAD of origin** (down from 20; divergence resolved between windows). S3-P2 gate permanently silenced (`emitted_for_current_streak: true`, streak=610).
+**Last updated**: 2026-07-09T14:17Z — reflection pass (idle window). **NO ATTENDED SESSIONS** (~282h since last attended, 2026-06-28T04:08Z). **24th consecutive idle window.** Loop unchanged: `hypothesis_space_exhausted`, `evidence=253` frozen, `signals_found=22`, `skipped_not_promotable=5`, `consecutive_empty_count=622` (+12 this window). **BUCKET 2948 EXPIRED UNSCORED** (confirmed Jul 9 — retroactive scoring requires principal authorization). **BUCKET 2949 EXPIRES 2026-07-16T00:00:00Z** — 20 open predictions; Phase 2b must ship before Jul 16 or second window lost. **BUCKET 2950**: resolve 2026-07-23T00:00:00Z, 20 open. **`skipped_unreplayable: 2` every cycle** — 24th window unresolved; affects bucket 2950 records (must fix before Jul 23). **LAG TAG GAP**: 40 predictions lack `lag_N` tags — 24th carry-forward; scorer must use `re.search(r'lag (\d+)', claim)` fallback. **STALE URGENTS (24th carry-forward)**: `URGENT-atlas-frozen-loop-2026-06-11T20-26Z.md` and `URGENT-atlas-unpushed-commits-3rd-cycle.md` — both deletable. **BRANCH 3 AHEAD of origin** (reflect-only commits). S3-P2 gate permanently silenced (`emitted_for_current_streak: true`, streak=622). **CRITICAL: Phase 2b must ship before 2026-07-16 — 7 days.**
+
+**Previous (2026-07-09T02:18Z)**: Idle window. ~12 cycles; consecutive_empty_count 598→610. No attended sessions (~270h). Evidence=253 frozen. Bucket 2948 EXPIRED UNSCORED (resolve_ts passed at 00:00Z). Lag tag: 23rd carry-forward. Stale URGENTs: 23rd carry-forward. Branch 2 ahead of origin.
 
 **Previous (2026-07-08T14:21Z)**: Idle window. ~12 cycles; consecutive_empty_count 586→598. No attended sessions (~258h). Evidence=253 frozen. Bucket 2948 at ~9.6h (last reflection before window closed). Lag tag: 22nd carry-forward. Stale URGENTs: 22nd carry-forward. Branch 20 ahead of origin.
 
