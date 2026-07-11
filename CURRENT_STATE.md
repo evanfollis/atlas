@@ -2,12 +2,14 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-07-10T14-22-01Z
+updated: 2026-07-11T02-20-44Z
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-07-10T14:22Z — reflection pass (idle window). **NO ATTENDED SESSIONS** (~305h since last attended, 2026-06-28T04:08Z). **26th consecutive idle window.** Loop unchanged: `hypothesis_space_exhausted`, `evidence=253` frozen, `signals_found=22`, `skipped_not_promotable=5`, `consecutive_empty_count=645` (+11 this window). **BUCKET 2948 EXPIRED UNSCORED** (confirmed Jul 9). **BUCKET 2949 EXPIRES 2026-07-16T00:00:00Z** — 20 open predictions; Phase 2b must ship before Jul 16 or second window lost (~5.5 days). **BUCKET 2950**: resolve 2026-07-23T00:00:00Z, `open_total=60`. **`skipped_unreplayable: 2` every cycle** — 26th window unresolved. **LAG TAG GAP**: 40 predictions lack `lag_N` tags — 26th carry-forward. **STALE URGENTS (26th carry-forward)**: deletable. **BRANCH 5 AHEAD of origin** (reflect-only commits). S3-P2 gate permanently silenced (`emitted_for_current_streak: true`, streak=645). **CRITICAL: Phase 2b must ship before 2026-07-16 — ~5.5 days.**
+**Last updated**: 2026-07-11T02:20Z — reflection pass (idle window). **NO ATTENDED SESSIONS** (~317h since last attended, 2026-06-28T04:08Z). **27th consecutive idle window.** Loop unchanged: `hypothesis_space_exhausted`, `evidence=253` frozen, `signals_found=22`, `skipped_not_promotable=5`, `consecutive_empty_count=657` (+12 this window). **BUCKET 2948 EXPIRED UNSCORED** (confirmed). **BUCKET 2949 EXPIRES 2026-07-16T00:00:00Z** — 20 open predictions; Phase 2b must ship before Jul 16 or second window lost (~5 days). **BUCKET 2950**: resolve 2026-07-23T00:00:00Z, `open_total=60`. **`skipped_unreplayable: 2` every cycle** — 27th window unresolved. **LAG TAG GAP**: 40 predictions lack `lag_N` tags — past-due (fix was required before 2026-07-09). **STALE URGENTS (27th carry-forward)**: deletable. **BRANCH 6 AHEAD of origin** (reflect-only commits). S3-P2 gate permanently silenced (`emitted_for_current_streak: true`, streak=657). **CRITICAL: Phase 2b must ship before 2026-07-16 — ~5 days.**
+
+**Previous (2026-07-10T14:22Z)**: Idle window. ~11 cycles; consecutive_empty_count 645→657. No attended sessions (~305h). Evidence=253 frozen. Bucket 2948 EXPIRED UNSCORED. Bucket 2949 at ~5.5 days. Lag tag: 26th carry-forward. Stale URGENTs: 26th carry-forward. Branch 5 ahead of origin.
 
 **Previous (2026-07-10T02:19Z)**: Idle window. ~12 cycles; consecutive_empty_count 622→634. No attended sessions (~293h). Evidence=253 frozen. Bucket 2948 EXPIRED UNSCORED. Bucket 2949 at ~6 days. Lag tag: 25th carry-forward. Stale URGENTs: 25th carry-forward. Branch 4 ahead of origin.
 
