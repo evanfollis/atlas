@@ -106,3 +106,19 @@ def test_scan_all_returns_list() -> None:
     })
     signals = scan_all(df)
     assert isinstance(signals, list)
+
+
+def test_autocorrelation_hypothesis_carries_lag_tag() -> None:
+    """The strategy lag must live in the tags, not only the claim text, so
+    _build_signal_from_hypothesis (and the forward-prediction scorer) replays
+    the lag the claim actually states instead of defaulting to lag 1."""
+    from atlas.generation.hypotheses import from_autocorrelation_signal
+    from atlas.generation.signals import Signal
+
+    sig = Signal(
+        description="ar", method="autocorrelation_scan", strength=0.5,
+        symbol="BTC/USDT", timeframe="1h", metadata={"lag": 3, "autocorr": -0.2},
+    )
+    h = from_autocorrelation_signal(sig, "BTC/USDT", "1h")
+    assert "lag_3" in h.tags
+    assert "at lag 3" in h.claim  # claim and strategy tag now agree

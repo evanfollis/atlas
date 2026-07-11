@@ -24,7 +24,7 @@ def from_autocorrelation_signal(signal: Signal, symbol: str, timeframe: str) -> 
         falsification_criteria=f"Sharpe ratio of lag-{lag} {'momentum' if ac > 0 else 'contrarian'} "
                                f"strategy is not significantly different from zero (p > alpha)",
         tags=[symbol.replace("/", "_").lower(), timeframe, "autocorrelation",
-              "momentum" if ac > 0 else "mean_reversion"],
+              "momentum" if ac > 0 else "mean_reversion", f"lag_{lag}"],
     )
 
 
