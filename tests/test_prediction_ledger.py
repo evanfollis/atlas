@@ -1,17 +1,21 @@
-"""Tests for the forward-prediction ledger (Phase 2a: registration + storage).
+"""Tests for the forward-prediction ledger.
 
-Locks the three load-bearing schema decisions: bucketed (non-overlapping,
-idempotent) ids, forward-only windows, and dedup-on-read storage. Scoring (2b)
-and the calibration CLI (2c) are separate.
+Phase 2a locks the schema (bucketed ids, forward-only windows, dedup-on-read).
+Phase 2b locks the scorer: replay the frozen spec on the forward window only,
+write conservative (never-STRONG) live_observation evidence, resolve append-only.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pandas as pd
+
 from atlas.generation.signals import Signal
+from atlas.models.evidence import EvidenceClass, EvidenceQuality
 from atlas.models.prediction import Prediction, prediction_id
 from atlas.runner import AutonomousRunner, PREDICTION_HORIZON_DAYS
 from atlas.storage.prediction_store import PredictionStore
+from atlas.storage.state_store import StateStore
 
 
 def _autocorr_signal(symbol: str = "BTC/USDT", tf: str = "1h", lag: int = 1) -> Signal:
@@ -133,3 +137,114 @@ def test_register_skips_unreplayable_methods(tmp_path: Path) -> None:
     assert result["registered"] == 1            # only the single-source signal
     assert result["skipped_unreplayable"] == 1  # cross-asset deferred
     assert all("pairs_trading" not in p.strategy_tags for p in r.predictions.all())
+
+
+# --- Phase 2b: scorer ---
+
+class _StubMarket:
+    def __init__(self, df: pd.DataFrame) -> None:
+        self._df = df
+
+    def fetch_ohlcv(self, symbol=None, timeframe=None, since=None, limit=100000):
+        return self._df
+
+
+def _ohlcv(start: datetime, periods: int) -> pd.DataFrame:
+    """Deterministic 1h OHLCV with non-degenerate return variance."""
+    idx = pd.date_range(start=start, periods=periods, freq="1h", tz="UTC")
+    x = 100.0
+    closes = []
+    for i in range(periods):
+        x *= 1 + 0.002 * ((i * 13 % 7) - 3)  # oscillating ~[-0.6%, +0.8%]
+        closes.append(x)
+    close = pd.Series(closes, index=idx)
+    df = pd.DataFrame(
+        {"open": close, "high": close * 1.001, "low": close * 0.999,
+         "close": close, "volume": 1000.0},
+        index=idx,
+    )
+    df.index.name = "timestamp"
+    return df
+
+
+def _due_prediction(now: datetime, horizon: float = 7.0):
+    past = now - timedelta(days=30)  # a window that resolved well before `now`
+    bucket, ws, rs = Prediction.forward_bucket(past, horizon)
+    pid = prediction_id("h-x", horizon, bucket)
+    p = Prediction(
+        id=pid, hypothesis_id="h-x",
+        claim="BTC/USDT 1h returns show negative autocorrelation at lag 1, enabling a mean-reversion strategy",
+        symbol="BTC/USDT", timeframe="1h",
+        strategy_tags=["btc_usdt", "1h", "autocorrelation", "mean_reversion"],
+        horizon_days=horizon, bucket=bucket, window_start_ts=ws, resolve_ts=rs,
+        asof_ts=past, statement="s",
+    )
+    return p, ws, rs
+
+
+def _scorer_runner(tmp_path: Path, df: pd.DataFrame) -> AutonomousRunner:
+    r = AutonomousRunner.__new__(AutonomousRunner)
+    r.predictions = PredictionStore(tmp_path / "predictions.jsonl")
+    r.state = StateStore(tmp_path / ".atlas")
+    r.market = _StubMarket(df)
+    r.methodology_log = tmp_path / "methodology.jsonl"
+    r._emit_telemetry = lambda *a, **k: None
+    return r
+
+
+def test_scorer_resolves_and_writes_live_observation(tmp_path: Path) -> None:
+    now = datetime(2026, 7, 11, tzinfo=timezone.utc)
+    pred, ws, _ = _due_prediction(now)
+    df = _ohlcv(ws - timedelta(days=8), 24 * 22)  # covers warm-up + window
+    r = _scorer_runner(tmp_path, df)
+    r.predictions.append(pred)
+
+    result = r.score_due_predictions(now=now)
+
+    assert result["scored"] == 1
+    resolved = r.predictions.all()[0]
+    assert resolved.status == "resolved"
+    assert resolved.realized_sharpe is not None and resolved.realized_return is not None
+    assert resolved.outcome in ("confirmed_null", "edge_appeared", "inconclusive")
+    # append-only: the forecast fields must be untouched by resolution
+    assert resolved.claim == pred.claim
+    assert resolved.window_start_ts == pred.window_start_ts
+    assert resolved.predicted_prob_up == 0.5
+    # one live_observation evidence, linked to the prediction, and NEVER strong
+    evs = r.state.list_all("evidence")
+    assert len(evs) == 1
+    assert evs[0]["evidence_class"] == EvidenceClass.LIVE_OBSERVATION.value
+    assert evs[0]["quality"] in (EvidenceQuality.WEAK.value, EvidenceQuality.MODERATE.value)
+    assert evs[0]["experiment_id"] == pred.id
+    assert r.predictions.count_open() == 0
+
+
+def test_scorer_marks_insufficient_data_unresolvable(tmp_path: Path) -> None:
+    now = datetime(2026, 7, 11, tzinfo=timezone.utc)
+    pred, ws, _ = _due_prediction(now)
+    df = _ohlcv(ws, 20)  # far fewer than SCORE_MIN_BARS in the window
+    r = _scorer_runner(tmp_path, df)
+    r.predictions.append(pred)
+
+    result = r.score_due_predictions(now=now)
+
+    assert result["unresolvable"] == 1 and result["scored"] == 0
+    assert r.predictions.all()[0].status == "unresolvable"
+    assert r.state.list_all("evidence") == []
+
+
+def test_scorer_leaves_future_predictions_open(tmp_path: Path) -> None:
+    now = datetime(2026, 7, 11, tzinfo=timezone.utc)
+    bucket, ws, rs = Prediction.forward_bucket(now, 7.0)  # window is in the future
+    fut = Prediction(
+        id="p-future", hypothesis_id="h", claim="c", symbol="BTC/USDT", timeframe="1h",
+        strategy_tags=["btc_usdt", "1h", "autocorrelation"], horizon_days=7.0,
+        bucket=bucket, window_start_ts=ws, resolve_ts=rs, asof_ts=now, statement="s",
+    )
+    r = _scorer_runner(tmp_path, _ohlcv(now - timedelta(days=8), 24 * 22))
+    r.predictions.append(fut)
+
+    result = r.score_due_predictions(now=now)
+
+    assert result["scored"] == 0 and result["unresolvable"] == 0
+    assert r.predictions.all()[0].status == "open"

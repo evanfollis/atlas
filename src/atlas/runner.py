@@ -71,6 +71,14 @@ REPLAYABLE_METHODS = frozenset({
     "volatility_clustering",
 })
 
+# Phase 2b scorer (CAUSAL_LOOP_AUDIT.md §Implementation log).
+# A single ~168-bar (7d/1h) window is mostly noise, so single-window live
+# evidence is deliberately capped at MODERATE — never STRONG — so two lucky
+# windows cannot clear the "≥2 distinct strong + ≥1 live_observation" promotion
+# gate. Calibration comes from aggregating many windows (2c), not one.
+SCORE_EDGE_SHARPE = 1.0    # annualized realized Sharpe above which a forward "edge" is flagged
+SCORE_MIN_BARS = 100       # a 7d/1h window is ~168 bars; below this the window is unresolvable
+
 # Tokens that mark a hypothesis as INFEASIBLE on this Hetzner server: the
 # named exchanges are either geo-blocked or only expose perp/funding feeds
 # we don't ingest. Match against lowercase claim+tags. See ADR-0014 and
@@ -1313,6 +1321,132 @@ class AutonomousRunner:
         self._emit_telemetry("prediction.registered", details=result)
         return result
 
+    def score_due_predictions(self, now: datetime | None = None) -> dict:
+        """Phase 2b: resolve predictions whose forward window has closed.
+
+        For each due prediction, replay the FROZEN strategy spec on realized data
+        for the forward window only, write a conservative `live_observation`
+        evidence record, and fill the prediction's resolution fields (append-only
+        — the forecast fields are never touched). Runs every cycle so scoring is
+        autonomous. The un-exhaustible evidence path: forward time keeps closing
+        windows regardless of whether the backtest hypothesis space is exhausted.
+        """
+        now = now or datetime.now(timezone.utc)
+        due = self.predictions.list_due(now)
+        scored = 0
+        unresolvable = 0
+        outcomes: dict[str, int] = {}
+        for p in due:
+            try:
+                resolved = self._score_one_prediction(p, now)
+            except Exception as exc:
+                log.warning("Scoring prediction %s failed: %s", p.id, exc)
+                continue
+            self.predictions.update(resolved)
+            if resolved.status == "resolved":
+                scored += 1
+                outcomes[resolved.outcome] = outcomes.get(resolved.outcome, 0) + 1
+            else:
+                unresolvable += 1
+        result = {
+            "scored": scored,
+            "unresolvable": unresolvable,
+            "outcomes": outcomes,
+            "open_remaining": self.predictions.count_open(),
+        }
+        if scored or unresolvable:
+            self._log_methodology({"phase": "prediction_scoring", **result})
+            self._emit_telemetry("prediction.resolved", details=result)
+        return result
+
+    def _score_one_prediction(self, p: Prediction, now: datetime):
+        """Score one due prediction; return the resolved (or unresolvable) copy.
+
+        Guardrails: (1) reconstruct from the frozen tags only — never re-detect;
+        (2) score returns inside [window_start, resolve_ts] only, using an earlier
+        warm-up prefix solely to prime rolling indicators; (3) set only resolution
+        fields (append-only).
+        """
+        warmup = timedelta(days=p.horizon_days)  # generous prefix for rolling indicators
+        since = (p.window_start_ts - warmup).strftime("%Y-%m-%d")
+        # `since` forces a cache-miss on a fresh (window-covering) fetch, bypassing
+        # the indefinitely-cached main scan CSV (which lags the forward window).
+        df = self.market.fetch_ohlcv(symbol=p.symbol, timeframe=p.timeframe, since=since, limit=100000)
+
+        window_mask = (df.index >= p.window_start_ts) & (df.index <= p.resolve_ts)
+        window = df.loc[window_mask]
+        if len(window) < SCORE_MIN_BARS:
+            return p.model_copy(update={
+                "status": "unresolvable",
+                "outcome": "insufficient_data",
+                "resolved_at": now,
+            })
+
+        # Build the signal on [window_start - warmup, resolve_ts] so rolling
+        # indicators are primed, then score ONLY the window's returns.
+        full = df.loc[(df.index >= p.window_start_ts - warmup) & (df.index <= p.resolve_ts)]
+        frozen_h = Hypothesis(
+            claim=p.claim,
+            tags=list(p.strategy_tags),
+            rationale="frozen forward-prediction spec (replay only)",
+            falsification_criteria="frozen",
+        )
+        signals = self._build_signal_from_hypothesis(frozen_h, full)
+
+        tf_periods = {"1h": 365 * 24, "4h": 365 * 6, "1d": 365, "1w": 52}
+        periods_per_year = tf_periods.get(p.timeframe, 365 * 6)
+        # Pass window prices + full signals; run_backtest reindexes signals to the
+        # window returns (the values were computed with warm-up) and applies fees.
+        bt = run_backtest(window["close"], signals, periods_per_year=periods_per_year, fee_bps=FEE_BPS)
+        realized_sharpe = float(bt.sharpe_ratio)
+        realized_return = float(bt.total_return)
+        realized_up = 1.0 if realized_return > 0 else 0.0
+        brier = (p.predicted_prob_up - realized_up) ** 2
+
+        if realized_sharpe >= SCORE_EDGE_SHARPE and realized_return > 0:
+            realized_label, outcome, direction = "edge", "edge_appeared", EvidenceDirection.SUPPORTS
+        elif realized_sharpe <= 0 or realized_return <= 0:
+            realized_label, outcome, direction = "no_edge", "confirmed_null", EvidenceDirection.CONTRADICTS
+        else:
+            realized_label, outcome, direction = "marginal", "inconclusive", EvidenceDirection.INCONCLUSIVE
+
+        # Single window is noisy: cap at MODERATE (never STRONG) so the ledger
+        # cannot manufacture a promotion on the current feature space.
+        quality = EvidenceQuality.WEAK if outcome == "inconclusive" else EvidenceQuality.MODERATE
+
+        ev = Evidence(
+            experiment_id=p.id,  # the prediction is its own distinct experiment
+            hypothesis_id=p.hypothesis_id,
+            evidence_class=EvidenceClass.LIVE_OBSERVATION,
+            quality=quality,
+            direction=direction,
+            summary=(
+                f"Forward window {p.window_start_ts:%Y-%m-%d}..{p.resolve_ts:%Y-%m-%d}: "
+                f"realized Sharpe {realized_sharpe:.2f}, return {realized_return * 100:.1f}% "
+                f"net {FEE_BPS}bps over {len(window)} bars → {outcome}"
+            ),
+            statistics={
+                "realized_sharpe": realized_sharpe,
+                "realized_return": realized_return,
+                "brier_score": brier,
+                "n_bars": len(window),
+                "prediction_id": p.id,
+                "bucket": p.bucket,
+            },
+            data_range=f"{p.window_start_ts:%Y-%m-%d} to {p.resolve_ts:%Y-%m-%d}",
+        )
+        self._save_obj("evidence", ev.id, ev.model_dump())
+
+        return p.model_copy(update={
+            "status": "resolved",
+            "realized_return": realized_return,
+            "realized_sharpe": realized_sharpe,
+            "realized_label": realized_label,
+            "brier_score": brier,
+            "outcome": outcome,
+            "resolved_at": now,
+        })
+
     def run_cycle(self) -> dict:
         """Execute one complete research cycle."""
         log.info("=== Starting research cycle ===")
@@ -1332,6 +1466,14 @@ class AutonomousRunner:
             cycle_report["predictions"] = self.register_predictions(signal_results)
         except Exception as exc:
             log.warning("Prediction registration failed: %s", exc)
+
+        # Phase 2b: score any predictions whose forward window has closed. Runs
+        # every cycle so calibration accrues autonomously. Defensive: a scorer
+        # bug must not break the research cycle.
+        try:
+            cycle_report["prediction_scoring"] = self.score_due_predictions()
+        except Exception as exc:
+            log.warning("Prediction scoring failed: %s", exc)
 
         # Phase 2: Generate hypotheses (with durable IDs and Bonferroni correction)
         hypotheses = self.generate_hypotheses(signal_results)
