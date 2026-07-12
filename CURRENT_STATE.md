@@ -2,12 +2,14 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-07-12T03:53:41Z
+updated: 2026-07-12T04:15:50Z
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-07-12T03:53:41Z — Prompteval governance handoff created/updated for atlas at `/opt/workspace/runtime/.handoff/atlas-prompteval-governance-2026-07-12.md` (`task_id=atlas-prompteval-governance-2026-07-12`). It is informational: atlas currently has 0 likely prompt artifacts, so ADR-0039 does not block Phase 2c. If atlas later adds an LLM call, agent charter prompt work, or prompt-building code, run `create-eval-loop` and pass `prompteval check .` before shipping. **NEXT remains Phase 2c** (`atlas calibration` CLI) — blocked on fixing `predicted_prob_up`; then P2 pool fix + unreplayable logging. — *Prior context below.*
+**Last updated**: 2026-07-12T04:15:50Z — Prompteval governance handoff refreshed for atlas at `/opt/workspace/runtime/.handoff/atlas-prompteval-governance-2026-07-12.md` (`task_id=atlas-prompteval-governance-2026-07-12`). It is informational: `/opt/workspace/supervisor/scripts/prompteval scan /opt/workspace/projects/atlas` currently reports `no likely prompt artifacts found`, so ADR-0039 does not block Phase 2c. If atlas later adds an LLM call, agent charter prompt work, or prompt-building code, run `create-eval-loop` and pass `prompteval check .` before shipping. **NEXT remains Phase 2c** (`atlas calibration` CLI) — blocked on fixing `predicted_prob_up`; then P2 pool fix + unreplayable logging. — *Prior context below.*
+
+**Previous (2026-07-12T03:53:41Z)** — Prompteval governance handoff created/updated for atlas at `/opt/workspace/runtime/.handoff/atlas-prompteval-governance-2026-07-12.md` (`task_id=atlas-prompteval-governance-2026-07-12`). It is informational: atlas currently has 0 likely prompt artifacts, so ADR-0039 does not block Phase 2c. If atlas later adds an LLM call, agent charter prompt work, or prompt-building code, run `create-eval-loop` and pass `prompteval check .` before shipping. **NEXT remains Phase 2c** (`atlas calibration` CLI) — blocked on fixing `predicted_prob_up`; then P2 pool fix + unreplayable logging.
 
 **Previous (2026-07-12T03:34:13Z)** — GitHub source repo established/verified as `evanfollis/atlas` and current tracked state is being pushed to `origin/main`. Local delta before push: one reflection commit plus runner-updated `graph/causal_graph.json` confidence/evidence changes. After this push, remote `origin/main` is expected to include the current front-door state and graph drift. **NEXT remains Phase 2c** (`atlas calibration` CLI) — blocked on fixing `predicted_prob_up`; then P2 pool fix + unreplayable logging.
 
