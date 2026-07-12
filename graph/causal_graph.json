@@ -12,11 +12,12 @@
       "evidence_ids": [
         "671b0b4070c4",
         "8f36c297e728",
+        "b7c05a643bae",
         "bcceb1dd3b57",
         "ce531847dafa"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "btc_usdt",
@@ -91,11 +92,12 @@
       "evidence_ids": [
         "17552302da92",
         "8ef81821f8eb",
+        "9c22f8a539df",
         "e92a7f4540ba",
         "fc37c00c2826"
       ],
       "contradiction_count": 0,
-      "confidence": 0.65,
+      "confidence": 0.7,
       "domain": "crypto",
       "tags": [
         "btc_usdt",
@@ -300,10 +302,11 @@
         "05b5bf309d4c",
         "0a6ab4a02fa1",
         "359818d5bf36",
-        "695c418c4eaf"
+        "695c418c4eaf",
+        "be5607307604"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "eth_usdt",
@@ -350,12 +353,13 @@
       "hypothesis_id": "37a2fb0a6f84aa34",
       "evidence_ids": [
         "42df31a8609e",
+        "a9db10eb0556",
         "b3ecd3447136",
         "cf9349c2bdaf",
         "ec8e816a3091"
       ],
       "contradiction_count": 0,
-      "confidence": 0.65,
+      "confidence": 0.7,
       "domain": "crypto",
       "tags": [
         "eth_usdt",
@@ -377,10 +381,11 @@
         "1ae316372828",
         "27b004935031",
         "2a1da0313f0b",
-        "34593cecce35"
+        "34593cecce35",
+        "8e3d7b850e6c"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "eth_usdt",
@@ -637,11 +642,12 @@
       "evidence_ids": [
         "08c82e7924a5",
         "59aea71c25d7",
+        "5bb52b22e731",
         "794c9f7629f5",
         "aa4fb4b6367a"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "eth_usdt",
@@ -717,10 +723,11 @@
         "11333af69602",
         "356a56302dae",
         "806d561c9579",
+        "a76b6dbb9d40",
         "c7ded3daf021"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "eth_usdt",
@@ -792,12 +799,13 @@
       "hypothesis_id": "807e6f61a523e338",
       "evidence_ids": [
         "45388ed1ea80",
+        "4ce8d4ef2e52",
         "a8643afb62f0",
         "a9e26fad40d4",
         "b6629bcd25ed"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "btc_usdt",
@@ -869,12 +877,13 @@
       "hypothesis_id": "8d66d256ef61d5ac",
       "evidence_ids": [
         "544ae8f6483c",
+        "81fa201ca1da",
         "8e5baa7f4194",
         "a019c1ce8af9",
         "f9fa7824dbe9"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "eth_usdt",
@@ -923,10 +932,11 @@
         "5016ea730673",
         "a80f870d41ba",
         "bbe7d9c3c9e7",
+        "c8a10b1b3442",
         "e9df4bb229fa"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "eth_usdt",
@@ -974,12 +984,13 @@
       "hypothesis_id": "a8ffe09b9f946ee1",
       "evidence_ids": [
         "7391225bc532",
+        "8b5e2c9f2b53",
         "8ee550892922",
         "c480e31373f3",
         "fd810c2eb68b"
       ],
       "contradiction_count": 0,
-      "confidence": 0.65,
+      "confidence": 0.7,
       "domain": "crypto",
       "tags": [
         "eth_usdt",
@@ -1078,11 +1089,12 @@
       "evidence_ids": [
         "0d7eaeef34ac",
         "3506aaaf5899",
+        "505c3b91496a",
         "70c5d3ce41a7",
         "fb3d33cc091e"
       ],
       "contradiction_count": 0,
-      "confidence": 0.65,
+      "confidence": 0.7,
       "domain": "crypto",
       "tags": [
         "btc_usdt",
@@ -1129,11 +1141,12 @@
       "evidence_ids": [
         "4cc0e3e19796",
         "61c491cf7942",
+        "6d52e42cd638",
         "ae7ca48df110",
         "efce150f3c8d"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "btc_usdt",
@@ -1178,13 +1191,14 @@
       "claim": "BTC/USDT 1h returns show negative autocorrelation at lag 1, enabling a mean-reversion strategy",
       "hypothesis_id": "c3e748fc90eda3c8",
       "evidence_ids": [
+        "229a39db98cc",
         "47e427c1f71b",
         "8f9d98a9bd77",
         "d60ac5d38453",
         "f10ac0775430"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "btc_usdt",
@@ -1203,13 +1217,14 @@
       "claim": "ETH/USDT 1h returns show positive autocorrelation at lag 10, enabling a momentum strategy",
       "hypothesis_id": "c4cfe077f9aec5c3",
       "evidence_ids": [
+        "12e6c2827311",
         "2cff35ccd15b",
         "51e2b1b00120",
         "6e440033ad66",
         "c600c63ed7a9"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "eth_usdt",
@@ -1310,11 +1325,12 @@
       "evidence_ids": [
         "0e4521b922c1",
         "23546d5d39c2",
+        "4dc1dace60d9",
         "bd920e73e296",
         "fffc016f8976"
       ],
       "contradiction_count": 0,
-      "confidence": 0.65,
+      "confidence": 0.7,
       "domain": "crypto",
       "tags": [
         "btc_usdt",
@@ -1467,10 +1483,11 @@
         "61801a24ddc0",
         "6e00a75e0a88",
         "86e97838892d",
-        "beb710593c17"
+        "beb710593c17",
+        "e74e629453ba"
       ],
       "contradiction_count": 0,
-      "confidence": 0.65,
+      "confidence": 0.7,
       "domain": "crypto",
       "tags": [
         "eth_usdt",
@@ -1492,10 +1509,11 @@
         "20edbdc10335",
         "4fea08ce9645",
         "5da5c3c1b29c",
+        "810fafe69eb6",
         "e292d9985bf1"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "btc_usdt",
@@ -1568,12 +1586,13 @@
       "hypothesis_id": "e48f65d95a229c1b",
       "evidence_ids": [
         "2bd3566581d1",
+        "2c5dc853833d",
         "78c14b969c12",
         "834ad787cc5e",
         "b5cc84426d37"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "btc_usdt",
@@ -1674,11 +1693,12 @@
       "evidence_ids": [
         "1e3cc7557bb0",
         "22a1f51b548a",
+        "b94735d133e8",
         "d0d1d7e6ce45",
         "d7000cd23d02"
       ],
       "contradiction_count": 2,
-      "confidence": 0.8500000000000001,
+      "confidence": 0.8999999999999999,
       "domain": "crypto",
       "tags": [
         "btc_usdt",
