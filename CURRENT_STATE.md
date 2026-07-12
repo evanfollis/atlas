@@ -2,12 +2,14 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-07-12T03:34:13Z
+updated: 2026-07-12T03:53:41Z
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-07-12T03:34:13Z — GitHub source repo established/verified as `evanfollis/atlas` and current tracked state is being pushed to `origin/main`. Local delta before push: one reflection commit plus runner-updated `graph/causal_graph.json` confidence/evidence changes. After this push, remote `origin/main` is expected to include the current front-door state and graph drift. **NEXT remains Phase 2c** (`atlas calibration` CLI) — blocked on fixing `predicted_prob_up`; then P2 pool fix + unreplayable logging. — *Prior context below.*
+**Last updated**: 2026-07-12T03:53:41Z — Prompteval governance handoff created/updated for atlas at `/opt/workspace/runtime/.handoff/atlas-prompteval-governance-2026-07-12.md` (`task_id=atlas-prompteval-governance-2026-07-12`). It is informational: atlas currently has 0 likely prompt artifacts, so ADR-0039 does not block Phase 2c. If atlas later adds an LLM call, agent charter prompt work, or prompt-building code, run `create-eval-loop` and pass `prompteval check .` before shipping. **NEXT remains Phase 2c** (`atlas calibration` CLI) — blocked on fixing `predicted_prob_up`; then P2 pool fix + unreplayable logging. — *Prior context below.*
+
+**Previous (2026-07-12T03:34:13Z)** — GitHub source repo established/verified as `evanfollis/atlas` and current tracked state is being pushed to `origin/main`. Local delta before push: one reflection commit plus runner-updated `graph/causal_graph.json` confidence/evidence changes. After this push, remote `origin/main` is expected to include the current front-door state and graph drift. **NEXT remains Phase 2c** (`atlas calibration` CLI) — blocked on fixing `predicted_prob_up`; then P2 pool fix + unreplayable logging.
 
 **Previous (2026-07-12T02:19:18Z)** — reflection pass. **Phase 2b is live and delivering.** Bucket 2948's 20 expired predictions scored autonomously (18 confirmed_null / 1 inconclusive / 1 edge_appeared; evidence 253→273). Bucket 2949 (20 open) will score autonomously 2026-07-16; no attended session needed. Lag-tag gap (28th carry-forward) **resolved** — `from_autocorrelation_signal` now emits `lag_N`. Two stale URGENTs deleted. Branch pushed (origin in sync). **Codex review ran** (`ledger-2b-scorer-2026-07-11.md`); 3 findings marked "pre-existing/guarded" without individual dispositions — gap noted. **Brier score degenerate** (`predicted_prob_up` always 0.5) — 2c calibration meaningless until fixed. `skipped_unreplayable: 2` — 29th window, still no ID logged. `symbol=None` pool fix still deferred. `graph/causal_graph.json` drifting uncommented again (2 nodes updated by runner).
 
