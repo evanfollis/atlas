@@ -2,12 +2,14 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-07-12T04:15:50Z
+updated: 2026-07-13T02:18:00Z
 ---
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-07-12T04:15:50Z — Prompteval governance handoff refreshed for atlas at `/opt/workspace/runtime/.handoff/atlas-prompteval-governance-2026-07-12.md` (`task_id=atlas-prompteval-governance-2026-07-12`). It is informational: `/opt/workspace/supervisor/scripts/prompteval scan /opt/workspace/projects/atlas` currently reports `no likely prompt artifacts found`, so ADR-0039 does not block Phase 2c. If atlas later adds an LLM call, agent charter prompt work, or prompt-building code, run `create-eval-loop` and pass `prompteval check .` before shipping. **NEXT remains Phase 2c** (`atlas calibration` CLI) — blocked on fixing `predicted_prob_up`; then P2 pool fix + unreplayable logging. — *Prior context below.*
+**Last updated**: 2026-07-13T02:18:00Z — Reflection pass (14:17 UTC reflection hit API rate cap; 24h gap). No attended sessions, no code commits. Runner cycled 2× (00:43Z, 01:44Z): `hypothesis_space_exhausted` both cycles, `hypotheses_evaluated: 0`, `refuted_nodes: 69`, `evidence=273` (frozen). Bucket 2949 resolves 2026-07-16T00:00:00Z → autonomous scoring expected, no attended session needed. `graph/causal_graph.json` NOT dirty (attended session Jul 12 captured drift). All 5 carry-forwards still open: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` — 30th+ window, still no ID logged; (4) Codex review findings lack individual dispositions; (5) CURRENT_STATE.md has uncommitted timestamp-only diff from Jul 12 attended session. **NEXT: Phase 2c** (`atlas calibration` CLI) — gated on fixing `predicted_prob_up` first. — *Prior context below.*
+
+**Previous (2026-07-12T05:26:23Z)** — Prompteval governance handoff (`task_id=atlas-prompteval-governance-2026-07-12`) acknowledged and closed. Verified: `prompteval scan /opt/workspace/projects/atlas` → `no likely prompt artifacts found`. ADR-0039 does not block Phase 2c. Rule carried forward: if atlas ever adds an LLM call or prompt-building code, run `create-eval-loop` first, then `prompteval check .` before deploy. No code changes this tick. **NEXT remains Phase 2c** (`atlas calibration` CLI) — blocked on fixing `predicted_prob_up`; then P2 pool fix + unreplayable logging. — *Prior context below.*
 
 **Previous (2026-07-12T03:53:41Z)** — Prompteval governance handoff created/updated for atlas at `/opt/workspace/runtime/.handoff/atlas-prompteval-governance-2026-07-12.md` (`task_id=atlas-prompteval-governance-2026-07-12`). It is informational: atlas currently has 0 likely prompt artifacts, so ADR-0039 does not block Phase 2c. If atlas later adds an LLM call, agent charter prompt work, or prompt-building code, run `create-eval-loop` and pass `prompteval check .` before shipping. **NEXT remains Phase 2c** (`atlas calibration` CLI) — blocked on fixing `predicted_prob_up`; then P2 pool fix + unreplayable logging.
 
