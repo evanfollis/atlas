@@ -2,10 +2,12 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-07-13T02:18:00Z
+updated: 2026-07-14T02:21:23Z
 ---
 
 # CURRENT_STATE — atlas
+
+**Last updated**: 2026-07-14T02:21:23Z — Reflection pass. No attended sessions, no code commits. Runner cycled 2× both `hypothesis_space_exhausted`, `hypotheses_evaluated: 0`, evidence=273 (frozen). Bucket 2949 resolves 2026-07-16T00:00:00Z (~48h) → autonomous scoring via Phase 2b scorer; no attended session needed. Branch clean, origin in sync. **31st+ window** for `skipped_unreplayable: 2` without ID logging — these 2 predictions will be invisible to the Jul 16 auto-scorer if patch not shipped. All 5 carry-forwards still open: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` — 31st+ window, no ID logged; (4) Codex review #5 findings lack individual dispositions; (5) 14:17 reflection rate-cap risk (2nd occurrence). **NEXT: Phase 2c** gated on `predicted_prob_up` fix. — *Prior context below.*
 
 **Last updated**: 2026-07-13T02:18:00Z — Reflection pass (14:17 UTC reflection hit API rate cap; 24h gap). No attended sessions, no code commits. Runner cycled 2× (00:43Z, 01:44Z): `hypothesis_space_exhausted` both cycles, `hypotheses_evaluated: 0`, `refuted_nodes: 69`, `evidence=273` (frozen). Bucket 2949 resolves 2026-07-16T00:00:00Z → autonomous scoring expected, no attended session needed. `graph/causal_graph.json` NOT dirty (attended session Jul 12 captured drift). All 5 carry-forwards still open: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` — 30th+ window, still no ID logged; (4) Codex review findings lack individual dispositions; (5) CURRENT_STATE.md has uncommitted timestamp-only diff from Jul 12 attended session. **NEXT: Phase 2c** (`atlas calibration` CLI) — gated on fixing `predicted_prob_up` first. — *Prior context below.*
 
