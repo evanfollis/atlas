@@ -2,10 +2,12 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-07-15T02:17:29Z
+updated: 2026-07-15T14:21:15Z
 ---
 
 # CURRENT_STATE — atlas
+
+**Last updated**: 2026-07-15T14:21:15Z — Reflection pass. No attended sessions, no code commits. Runner cycled 12× (02:18Z–14:21Z Jul 15), all `hypothesis_space_exhausted`, `hypotheses_evaluated: 0`, evidence=273 (frozen). Bucket 2949 resolves ~9h from now (2026-07-16T00:00:00Z) — autonomous Phase 2b scoring will fire; expected evidence 273→~293. `open_total: 40` (both 2949+2950 open), `prediction.resolved` count = 0. **`skipped_unreplayable: 2` at 34th+ consecutive window; bucket 2949 remediation window closed — skip-ID patch matters only for bucket 2950 now.** All 5 carry-forwards unchanged: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` — 34th+ window; (4) Codex review #5 findings lack individual dispositions; (5) [resolved — was 14:17 reflection rate-cap risk]. Branch clean, origin in sync. **NEXT: post-Jul 16 verify bucket 2949 scored correctly (evidence count ≥ ~291), then `symbol=None` pool fix to restore loop productivity.** — *Prior context below.*
 
 **Last updated**: 2026-07-15T02:17:29Z — Reflection pass. No attended sessions, no code commits. Runner cycled 12× (15:10Z Jul 14–02:18Z Jul 15), all `hypothesis_space_exhausted`, `hypotheses_evaluated: 0`, evidence=273 (frozen). Bucket 2949 resolves in ~22h (2026-07-16T00:00:00Z) — autonomous Phase 2b scoring will fire; no attended session needed but **remediation window for `skipped_unreplayable` is now closed for bucket 2949**. `skipped_unreplayable: 2` at 33rd+ consecutive window. All 5 carry-forwards still open: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` — 33rd+ window, past Jul 16 remediation deadline; (4) Codex review #5 findings lack individual dispositions; (5) 14:17 reflection rate-cap risk (prior, resolved this window). Branch clean, origin in sync. **NEXT: post-Jul 16 verify bucket 2949 scored correctly, then `symbol=None` pool fix to restore loop productivity.** — *Prior context below.*
 
