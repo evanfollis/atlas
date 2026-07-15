@@ -2,10 +2,12 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-07-14T14:17:06Z
+updated: 2026-07-15T02:17:29Z
 ---
 
 # CURRENT_STATE — atlas
+
+**Last updated**: 2026-07-15T02:17:29Z — Reflection pass. No attended sessions, no code commits. Runner cycled 12× (15:10Z Jul 14–02:18Z Jul 15), all `hypothesis_space_exhausted`, `hypotheses_evaluated: 0`, evidence=273 (frozen). Bucket 2949 resolves in ~22h (2026-07-16T00:00:00Z) — autonomous Phase 2b scoring will fire; no attended session needed but **remediation window for `skipped_unreplayable` is now closed for bucket 2949**. `skipped_unreplayable: 2` at 33rd+ consecutive window. All 5 carry-forwards still open: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` — 33rd+ window, past Jul 16 remediation deadline; (4) Codex review #5 findings lack individual dispositions; (5) 14:17 reflection rate-cap risk (prior, resolved this window). Branch clean, origin in sync. **NEXT: post-Jul 16 verify bucket 2949 scored correctly, then `symbol=None` pool fix to restore loop productivity.** — *Prior context below.*
 
 **Last updated**: 2026-07-14T14:17:06Z — Reflection pass. No attended sessions, no code commits. Runner cycled 12× (02:19Z–14:10Z) all `hypothesis_space_exhausted`, `hypotheses_evaluated: 0`, evidence=273 (frozen). Bucket 2949 resolves 2026-07-16T00:00:00Z (~34h) — autonomous Phase 2b scoring will fire then; no attended session needed. Outstanding predictions: 40 (buckets 2949+2950). Branch clean, origin in sync. **32nd+ window** for `skipped_unreplayable: 2` without ID logging — highest urgency fix before Jul 16. All 5 carry-forwards still open: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` — 32nd+ window, no ID logged; (4) Codex review #5 findings lack individual dispositions; (5) 14:17 reflection rate-cap risk. **NEXT: Phase 2c** gated on `predicted_prob_up` fix. — *Prior context below.*
 
