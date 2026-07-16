@@ -2,10 +2,12 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-07-15T14:21:15Z
+updated: 2026-07-16T02:21:05Z
 ---
 
 # CURRENT_STATE — atlas
+
+**Last updated**: 2026-07-16T02:21:05Z — Reflection pass. **Bucket 2949 scored autonomously at 00:33Z Jul 16** — Phase 2b working correctly. 20 predictions scored (18 confirmed_null, 2 edge_appeared), evidence 273→293, open_remaining=40. `skipped_unreplayable: 2` now **confirmed systemic**: reappears in bucket 2951 registration (not bucket-specific; 2 signal types fail replay on every new bucket). New buckets: 2950 (resolves 2026-07-23), 2951 (resolves 2026-07-30). `graph/causal_graph.json` dirty with runner-added evidence links from scoring run. All prior carry-forwards unchanged: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` systemic — 35th+ window, still no ID logged, now confirmed as recurring per-bucket bug; (4) Codex review #5 findings lack individual dispositions. **NEXT: skip-ID patch before 2026-07-23 (bucket 2950 resolves), then `symbol=None` pool fix to restore loop productivity.**
 
 **Last updated**: 2026-07-15T14:21:15Z — Reflection pass. No attended sessions, no code commits. Runner cycled 12× (02:18Z–14:21Z Jul 15), all `hypothesis_space_exhausted`, `hypotheses_evaluated: 0`, evidence=273 (frozen). Bucket 2949 resolves ~9h from now (2026-07-16T00:00:00Z) — autonomous Phase 2b scoring will fire; expected evidence 273→~293. `open_total: 40` (both 2949+2950 open), `prediction.resolved` count = 0. **`skipped_unreplayable: 2` at 34th+ consecutive window; bucket 2949 remediation window closed — skip-ID patch matters only for bucket 2950 now.** All 5 carry-forwards unchanged: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` — 34th+ window; (4) Codex review #5 findings lack individual dispositions; (5) [resolved — was 14:17 reflection rate-cap risk]. Branch clean, origin in sync. **NEXT: post-Jul 16 verify bucket 2949 scored correctly (evidence count ≥ ~291), then `symbol=None` pool fix to restore loop productivity.** — *Prior context below.*
 
