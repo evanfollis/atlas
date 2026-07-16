@@ -2,10 +2,12 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-07-16T02:21:05Z
+updated: 2026-07-16T14:19:04Z
 ---
 
 # CURRENT_STATE — atlas
+
+**Last updated**: 2026-07-16T14:19:04Z — Reflection pass. No attended sessions, no code commits. Runner cycled ~12× (02:21Z–14:19Z Jul 16), all `hypothesis_space_exhausted`, `hypotheses_evaluated: 0`, evidence=293 (frozen). `consecutive_empty_count: 789`. `skipped_unreplayable: 2` — 36th+ consecutive window; both bucket 2950 (resolves 2026-07-23) and bucket 2951 (resolves 2026-07-30) predictions already registering with 2 unreplayable silently discarded. `graph/causal_graph.json` still dirty (runner drift from bucket 2949 scoring). All carry-forwards unchanged: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` — 36th+ window, no ID logged; (4) Codex review #5 findings lack individual dispositions. **NEXT: skip-ID patch before 2026-07-23 (bucket 2950 resolves), then `symbol=None` pool fix.**
 
 **Last updated**: 2026-07-16T02:21:05Z — Reflection pass. **Bucket 2949 scored autonomously at 00:33Z Jul 16** — Phase 2b working correctly. 20 predictions scored (18 confirmed_null, 2 edge_appeared), evidence 273→293, open_remaining=40. `skipped_unreplayable: 2` now **confirmed systemic**: reappears in bucket 2951 registration (not bucket-specific; 2 signal types fail replay on every new bucket). New buckets: 2950 (resolves 2026-07-23), 2951 (resolves 2026-07-30). `graph/causal_graph.json` dirty with runner-added evidence links from scoring run. All prior carry-forwards unchanged: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` systemic — 35th+ window, still no ID logged, now confirmed as recurring per-bucket bug; (4) Codex review #5 findings lack individual dispositions. **NEXT: skip-ID patch before 2026-07-23 (bucket 2950 resolves), then `symbol=None` pool fix to restore loop productivity.**
 
