@@ -2,10 +2,12 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-07-17T14:20:53Z
+updated: 2026-07-18T02:19:37Z
 ---
 
 # CURRENT_STATE — atlas
+
+**Last updated**: 2026-07-18T02-19-37Z — Reflection pass. No attended sessions, no code commits. Runner cycled ~12× (01:06Z–02:07Z Jul 18 observed), all `hypothesis_space_exhausted`, `hypotheses_evaluated: 0`, evidence=293 (frozen). `skipped_unreplayable: 2` — 39th+ window, now also firing on bucket 2951 registration. Bucket 2950 resolves 2026-07-23 (~5 days) — skip-ID patch **must ship before then** or second bucket loses records silently. `graph/causal_graph.json` dirty (66-line diff, 21+ days; confidence bumps on 4 nodes, 5 new evidence IDs from bucket 2949 scoring). All 4 carry-forwards unchanged: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` — 39th+ window; (4) Codex review #5 findings lack individual dispositions. **NEXT: skip-ID patch + `symbol=None` fix before 2026-07-23.**
 
 **Last updated**: 2026-07-17T14-20-53Z — Reflection pass. No attended sessions, no code commits. Runner cycled ~12× (02:19Z–14:20Z Jul 17), all `hypothesis_space_exhausted`, `hypotheses_evaluated: 0`, evidence=293 (frozen). `skipped_unreplayable: 2` — 38th+ window, no IDs logged. Bucket 2950 resolves 2026-07-23 (~6 days) — skip-ID patch **must ship before then**. `graph/causal_graph.json` dirty (66-line diff, 21+ days, bucket 2949 scoring artifact). All 4 carry-forwards unchanged: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` — 38th+ window; (4) Codex review #5 findings lack individual dispositions. **NEXT: skip-ID patch before 2026-07-23, then `symbol=None` pool fix.**
 
