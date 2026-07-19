@@ -1,0 +1,29 @@
+name: CI
+
+# Smallest strong regression gate: run the full test suite on every push to
+# main and every PR. The suite is hermetic (all market fetches are stubbed),
+# so it needs no exchange credentials or network. A red run here is the
+# earliest visible signal that a change broke the research loop's invariants —
+# promotion gate, walk-forward math, the S3-P2 escalation gate, and the
+# prediction ledger all have coverage.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package + test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+      - name: Run tests
+        run: pytest -q
