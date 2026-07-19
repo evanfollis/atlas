@@ -2,10 +2,13 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-07-19T02:19:34Z
+updated: 2026-07-19T14:21:38Z
 ---
 
 # CURRENT_STATE — atlas
+
+**Last updated**: 2026-07-19T14-21-38Z — Reflection pass. No attended sessions, no code commits. Runner cycled ~12× (02:19Z–14:21Z Jul 19), all `hypothesis_space_exhausted`, `hypotheses_evaluated: 0`, evidence=293 (frozen). `skipped_unreplayable: 2` — **42nd consecutive window**; bucket 2951 accumulating. **Bucket 2950 resolves 2026-07-23 (~3.3 days)** — skip-ID patch CRITICAL, attribution window closing fast. `graph/causal_graph.json` dirty (66-line diff, 23+ days). S3-P2 gate permanently silenced (`emitted_for_current_streak: true`) while loop is genuinely stuck — gate cannot re-arm without a decisive cycle that is impossible while pool is exhausted. All 4 carry-forwards unchanged: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` — 42nd window; (4) Codex review #5 findings lack per-item dispositions. **NEXT: attended session must land skip-ID patch + `symbol=None` fix before 2026-07-23.**
+
 
 **Last updated**: 2026-07-19T02-19-34Z — Reflection pass. No attended sessions, no code commits. Runner cycled ~2× in visible telemetry window, all `hypothesis_space_exhausted`, `hypotheses_evaluated: 0`, evidence=293 (frozen). `skipped_unreplayable: 2` — **41st consecutive window**; bucket 2951 accumulating. **Bucket 2950 resolves 2026-07-23 (~3.8 days)** — skip-ID patch CRITICAL, attribution window closing fast. `graph/causal_graph.json` dirty (66-line diff, 23+ days). S3-P2 gate permanently silenced (`emitted_for_current_streak: true`) while loop is genuinely stuck — gate cannot re-arm without a decisive cycle that is impossible while pool is exhausted. All 4 carry-forwards unchanged: (1) `predicted_prob_up=0.5` blocks Phase 2c; (2) `symbol=None` pool fix blocks hypothesis eval; (3) `skipped_unreplayable: 2` — 41st window; (4) Codex review #5 findings lack per-item dispositions. **NEXT: attended session must land skip-ID patch + `symbol=None` fix before 2026-07-23.**
 
