@@ -14,6 +14,7 @@ from atlas.models.evidence import (
 from atlas.runner import (
     AutonomousRunner,
     FROZEN_LOOP_ESCALATION_AFTER,
+    FROZEN_LOOP_REEMIT_AFTER,
     evaluate_promotion_gate,
 )
 from atlas.storage.event_store import EventStore
@@ -160,6 +161,79 @@ def test_escalation_idempotent_when_streak_grows_past_threshold(runner_with_tele
     )
     handoffs = list(r.SUPERVISOR_HANDOFF_DIR.glob("URGENT-atlas-frozen-loop-*.md"))
     assert len(handoffs) == 1
+
+
+def test_escalation_reemits_after_staleness_window(runner_with_telemetry):
+    """A genuinely-stuck loop must not go dark after one alert. Once the
+    streak has grown FROZEN_LOOP_REEMIT_AFTER cycles past the last emission,
+    the gate re-emits so meta-scan keeps seeing the stuck signal (S3-P2)."""
+    r = runner_with_telemetry
+    _simulate_cycles(r, [{"continue": 5}] * FROZEN_LOOP_ESCALATION_AFTER)
+    r._maybe_escalate_frozen_loop()  # first emission
+    assert _read_runner_event_types(r).count("cycle.escalated") == 1
+
+    # Grow the same streak past the re-emit threshold — no break, still stuck.
+    _simulate_cycles(r, [{"continue": 5}] * FROZEN_LOOP_REEMIT_AFTER)
+    r._maybe_escalate_frozen_loop()
+
+    events = _all_runner_events(r)
+    escalations = [e for e in events if e["eventType"] == "cycle.escalated"]
+    assert len(escalations) == 2, "gate went dark on a still-stuck loop"
+    assert escalations[1]["details"]["reemit"] is True
+    assert escalations[0]["details"]["reemit"] is False
+
+
+def test_escalation_silent_within_staleness_window(runner_with_telemetry):
+    """Between the first alert and the re-emit threshold the gate stays quiet
+    — the re-arm must not degrade into per-cycle spam."""
+    r = runner_with_telemetry
+    _simulate_cycles(r, [{"continue": 5}] * FROZEN_LOOP_ESCALATION_AFTER)
+    r._maybe_escalate_frozen_loop()
+
+    # One short of the threshold → still suppressed.
+    _simulate_cycles(r, [{"continue": 5}] * (FROZEN_LOOP_REEMIT_AFTER - 1))
+    r._maybe_escalate_frozen_loop()
+
+    assert _read_runner_event_types(r).count("cycle.escalated") == 1
+
+
+def test_reemit_bookkeeping_resets_after_decisive_cycle(runner_with_telemetry):
+    """A decisive cycle clears last_emitted_count so the NEXT streak escalates
+    on its own first breach, not immediately via a stale re-emit delta."""
+    r = runner_with_telemetry
+    _simulate_cycles(r, [{"continue": 5}] * FROZEN_LOOP_ESCALATION_AFTER)
+    r._maybe_escalate_frozen_loop()
+    _simulate_cycles(r, [{"continue": 5}] * FROZEN_LOOP_REEMIT_AFTER)
+    r._maybe_escalate_frozen_loop()  # re-emit (2 total)
+
+    r._update_streak_counter({"kill": 1})  # decisive → wipes streak bookkeeping
+    state = r._load_escalation_state()
+    assert state.get("consecutive_empty_count") == 0
+    assert "last_emitted_count" not in state
+
+    # A fresh 3-cycle streak escalates exactly once (first breach), not via
+    # a leftover delta.
+    _simulate_cycles(r, [{"continue": 5}] * FROZEN_LOOP_ESCALATION_AFTER)
+    r._maybe_escalate_frozen_loop()
+    assert _read_runner_event_types(r).count("cycle.escalated") == 3
+
+
+def test_reemit_fails_toward_signal_on_corrupt_high_emit_count(runner_with_telemetry):
+    """Adversarial-review finding (2026-07-19): a semantically-corrupt
+    last_emitted_count higher than the live streak makes (count - last)
+    negative. That must NOT silence the gate forever — a negative delta is
+    impossible on a real streak, so re-emit (fail toward signal)."""
+    r = runner_with_telemetry
+    _simulate_cycles(r, [{"continue": 5}] * FROZEN_LOOP_ESCALATION_AFTER)
+    r._maybe_escalate_frozen_loop()  # first emission, count == threshold
+
+    # Poison the state: emission count far above the current streak length.
+    state = r._load_escalation_state()
+    state["last_emitted_count"] = 999_999
+    r._persist_escalation_state(state)
+
+    r._maybe_escalate_frozen_loop()  # negative delta → must re-emit, not go dark
+    assert _read_runner_event_types(r).count("cycle.escalated") == 2
 
 
 def test_state_file_corruption_falls_back_to_empty(runner_with_telemetry, tmp_path):

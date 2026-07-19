@@ -139,6 +139,38 @@ def test_register_skips_unreplayable_methods(tmp_path: Path) -> None:
     assert all("pairs_trading" not in p.strategy_tags for p in r.predictions.all())
 
 
+def test_register_logs_which_signal_was_skipped_as_unreplayable(tmp_path: Path) -> None:
+    """A bare `skipped_unreplayable: N` count cannot tell the by-design
+    deferral of cross_asset_spread/lead_lag apart from a regression that
+    silently drops a genuinely-replayable method. The skip must be
+    attributable: method + symbol + timeframe of every dropped signal."""
+    r = AutonomousRunner.__new__(AutonomousRunner)
+    r.predictions = PredictionStore(tmp_path / "predictions.jsonl")
+    r.methodology_log = tmp_path / "methodology.jsonl"
+    r._emit_telemetry = lambda *a, **k: None
+
+    now = datetime(2026, 6, 28, 12, 0, tzinfo=timezone.utc)
+    cross_asset = Signal(
+        description="spread reverts", method="cross_asset_spread", strength=0.5,
+        symbol="BTC/USDT", timeframe="1h", metadata={"partner": "ETH/USDT"},
+    )
+    lead_lag = Signal(
+        description="eth leads btc", method="lead_lag", strength=0.5,
+        symbol="ETH/USDT", timeframe="1h", metadata={},
+    )
+    signal_results = [("BTC/USDT", "1h", [_autocorr_signal(), cross_asset, lead_lag], None)]
+
+    result = r.register_predictions(signal_results, now=now)
+
+    assert result["skipped_unreplayable"] == 2
+    detail = result["skipped_unreplayable_detail"]
+    methods = {d["method"] for d in detail}
+    assert methods == {"cross_asset_spread", "lead_lag"}
+    # Every dropped signal is fully identified, not just counted.
+    assert all({"method", "symbol", "timeframe"} <= set(d) for d in detail)
+    assert {d["symbol"] for d in detail} == {"BTC/USDT", "ETH/USDT"}
+
+
 # --- Phase 2b: scorer ---
 
 class _StubMarket:

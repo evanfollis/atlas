@@ -116,6 +116,17 @@ DATASET_RETEST_AFTER = timedelta(days=1)
 # skips" (CLAUDE.md §Architecture Governance).
 FROZEN_LOOP_ESCALATION_AFTER = 3
 
+# Staleness re-arm: once a streak has escalated, stay quiet until it has grown
+# this many additional cycles, then re-emit. Without this, the gate fires once
+# per streak and then goes permanently dark — and "a monitor that only emits on
+# the happy path is indistinguishable from a stuck monitor" (S3-P2). A
+# genuinely stuck loop (e.g. hypothesis-space exhausted for weeks) must keep
+# signalling, not fall silent after a single alert. 168 ≈ one week at the
+# hourly cycle cadence: frequent enough that the signal never disappears, rare
+# enough that it does not spam the INBOX. The URGENT-handoff writer keeps its
+# own glob-dedup, so re-emits refresh telemetry without piling up files.
+FROZEN_LOOP_REEMIT_AFTER = 168
+
 
 def evaluate_promotion_gate(evidence: list[Evidence]) -> dict:
     """Pure predicate: return promotion-gate metrics for one hypothesis.
@@ -275,6 +286,38 @@ class AutonomousRunner:
         except Exception:
             return False
         return len(df) >= MIN_BARS_FOR_RESEARCH
+
+    @staticmethod
+    def _pool_skip_reason(h: Hypothesis) -> str:
+        """Classify *why* a FORMULATED hypothesis is not currently promotable.
+
+        Parse-only (no fetch), so it is cheap and deterministic. Turns the
+        opaque `skipped_not_promotable` count into an attributable reason:
+
+          - unparseable_tags        — no (symbol, timeframe) recoverable
+          - off_universe_timeframe  — timeframe (e.g. 4h) is not scanned by
+                                      any DEFAULT_UNIVERSE pair; structurally
+                                      untestable until the universe config
+                                      changes, distinct from a transient
+                                      bar-count shortfall
+          - off_universe_pair       — (symbol, timeframe) pair not in universe
+          - insufficient_bars_or_fetch — pair is in-universe but the dataset
+                                      is too short / fetch failed (reversible;
+                                      e.g. SOL/USDT 1h history still growing)
+
+        This does NOT change promotion behavior — it only labels the skip so
+        the stuck pool is legible instead of a bare count. The reversibility
+        policy (all of these stay FORMULATED) is unchanged.
+        """
+        parsed = AutonomousRunner._parse_dataset_from_hypothesis(h)
+        if parsed is None:
+            return "unparseable_tags"
+        universe_timeframes = {tf for _, tf in DEFAULT_UNIVERSE}
+        if parsed[1] not in universe_timeframes:
+            return "off_universe_timeframe"
+        if parsed not in DEFAULT_UNIVERSE_SET:
+            return "off_universe_pair"
+        return "insufficient_bars_or_fetch"
 
     def _has_productive_universe_dataset(
         self,
@@ -443,6 +486,7 @@ class AutonomousRunner:
         promoted_ids: list[str] = []
         infeasible_ids: list[str] = []
         skipped_ids: list[str] = []
+        skipped_detail: list[dict] = []
         for h in candidates:
             # Permanent infeasibility is a property of the claim — always
             # mark, even if `current` is already at target, so the pool
@@ -464,13 +508,18 @@ class AutonomousRunner:
             except Exception as exc:
                 log.warning("Feasibility check failed for %s: %s", h.id, exc)
                 skipped_ids.append(h.id)
+                skipped_detail.append({"id": h.id, "reason": "feasibility_check_error"})
                 continue
             if not available:
                 # Reversible reason — leave FORMULATED for re-evaluation
-                # next cycle. Telemetry still records the skip so the
-                # frozen-loop monitor isn't blind to a "pool full of
-                # off-universe entries" failure mode.
+                # next cycle. Telemetry still records the skip (now with a
+                # per-hypothesis reason) so the frozen-loop monitor isn't
+                # blind to a "pool full of off-universe entries" failure mode
+                # and an operator can tell a structural block (off_universe_
+                # timeframe, e.g. an orphaned 4h claim) from a transient one
+                # (insufficient_bars_or_fetch, e.g. SOL/USDT 1h still filling).
                 skipped_ids.append(h.id)
+                skipped_detail.append({"id": h.id, "reason": self._pool_skip_reason(h)})
                 continue
 
             h.status = HypothesisStatus.TESTING
@@ -479,11 +528,15 @@ class AutonomousRunner:
             promoted_ids.append(h.id)
 
         if candidates:  # always emit when the pool was non-empty
+            skip_reasons: dict[str, int] = {}
+            for d in skipped_detail:
+                skip_reasons[d["reason"]] = skip_reasons.get(d["reason"], 0) + 1
             self._log_methodology({
                 "phase": "auto_top_up",
                 "promoted_from_formulated": promoted_ids,
                 "marked_infeasible": infeasible_ids,
                 "skipped_not_promotable": skipped_ids,
+                "skipped_not_promotable_detail": skipped_detail,
                 "pool_size": len(candidates),
                 "current_size": len(current),
             })
@@ -493,6 +546,7 @@ class AutonomousRunner:
                     "promoted": len(promoted_ids),
                     "infeasible": len(infeasible_ids),
                     "skipped_not_promotable": len(skipped_ids),
+                    "skipped_reasons": skip_reasons,
                     "pool_size": len(candidates),
                     "current_size": len(current),
                 },
@@ -1270,6 +1324,7 @@ class AutonomousRunner:
         existing = {p.id for p in self.predictions.all()}
         registered = 0
         skipped_unreplayable = 0
+        skipped_detail: list[dict] = []
         seen: set[str] = set()
         for symbol, timeframe, signals, _ in signal_results:
             for signal in signals:
@@ -1278,6 +1333,16 @@ class AutonomousRunner:
                 # would produce meaningless live_observation evidence.
                 if signal.method not in REPLAYABLE_METHODS:
                     skipped_unreplayable += 1
+                    # Record *which* signal was dropped, not just a count. A bare
+                    # `skipped_unreplayable: 2` cannot distinguish the by-design
+                    # deferral of cross_asset_spread/lead_lag from a regression
+                    # that silently starts dropping a genuinely-replayable method.
+                    skipped_detail.append({
+                        "method": signal.method,
+                        "symbol": signal.symbol or symbol,
+                        "timeframe": signal.timeframe or timeframe,
+                        "description": signal.description[:120],
+                    })
                     continue
                 h = from_signal(signal, symbol, timeframe)
                 if not h:
@@ -1311,12 +1376,16 @@ class AutonomousRunner:
         result = {
             "registered": registered,
             "skipped_unreplayable": skipped_unreplayable,
+            "skipped_unreplayable_detail": skipped_detail,
             "bucket": bucket,
             "window_start": window_start.isoformat(),
             "resolve": resolve.isoformat(),
             "open_total": self.predictions.count_open(),
         }
-        if registered:
+        # Log methodology when anything happened — a registration OR a skip.
+        # Skips must be captured even on a cycle that registers nothing, so the
+        # dropped signals stay attributable in the append-only learning log.
+        if registered or skipped_detail:
             self._log_methodology({"phase": "prediction_registration", **result})
         self._emit_telemetry("prediction.registered", details=result)
         return result
@@ -1798,6 +1867,16 @@ class AutonomousRunner:
                 out["emitted_for_current_streak"] = bool(val)
             else:
                 out["emitted_for_current_streak"] = False
+        # last_emitted_count: int — the streak length at the last emission,
+        # used by the staleness re-arm. Corrupt/missing → treated as 0, which
+        # makes an already-emitted streak eligible to re-emit once it grows
+        # past FROZEN_LOOP_REEMIT_AFTER (fail-toward-signal, not silence).
+        if "last_emitted_count" in raw:
+            val = raw["last_emitted_count"]
+            try:
+                out["last_emitted_count"] = int(val)
+            except (TypeError, ValueError):
+                out["last_emitted_count"] = 0
         return out
 
     def _persist_escalation_state(self, state: dict) -> None:
@@ -1811,12 +1890,20 @@ class AutonomousRunner:
         except Exception as exc:
             log.warning("Failed to write escalation state %s: %s", path, exc)
 
-    def _save_escalation_state(self, streak_start_ts: int, emitted_ts: int) -> None:
-        """Mark the current streak as emitted. Preserves the existing counter."""
+    def _save_escalation_state(
+        self, streak_start_ts: int, emitted_ts: int, emitted_count: int
+    ) -> None:
+        """Mark the current streak as emitted. Preserves the existing counter.
+
+        `emitted_count` records the streak length at this emission so the
+        staleness re-arm can decide when the streak has grown enough to
+        warrant a fresh signal (see _maybe_escalate_frozen_loop).
+        """
         state = self._load_escalation_state()
         state.update({
             "emitted_for_current_streak": True,
             "last_emitted_ts": emitted_ts,
+            "last_emitted_count": emitted_count,
             "streak_start_ts": streak_start_ts,
         })
         self._persist_escalation_state(state)
@@ -1836,6 +1923,8 @@ class AutonomousRunner:
         state = self._load_escalation_state()
 
         if has_decisive:
+            # New streak begins — forget the prior streak's emission bookkeeping
+            # (including last_emitted_count) so the next streak escalates fresh.
             new_state: dict = {
                 "consecutive_empty_count": 0,
                 "streak_start_ts": None,
@@ -1856,6 +1945,10 @@ class AutonomousRunner:
             }
             if "last_emitted_ts" in state:
                 new_state["last_emitted_ts"] = state["last_emitted_ts"]
+            # Carry the emission count forward across same-streak cycles so the
+            # staleness re-arm can measure how far the streak has grown since.
+            if "last_emitted_count" in state:
+                new_state["last_emitted_count"] = state["last_emitted_count"]
 
         self._persist_escalation_state(new_state)
 
@@ -1866,8 +1959,12 @@ class AutonomousRunner:
 
         The counter is maintained by `_update_streak_counter`, called from
         `run_cycle` before this method. Resets to 0 on any kill/promote/pivot.
-        Idempotency is governed by `emitted_for_current_streak` in the state
-        file — rotation-proof because it never reads events.jsonl.
+        First-fire idempotency is governed by `emitted_for_current_streak` in
+        the state file — rotation-proof because it never reads events.jsonl.
+        A second and subsequent fire on the SAME streak is gated by the
+        staleness re-arm: the streak must have grown FROZEN_LOOP_REEMIT_AFTER
+        cycles since the last emission, so a persistently-stuck loop keeps
+        signalling instead of going dark after one alert.
         """
         state = self._load_escalation_state()
         count = state.get("consecutive_empty_count", 0)
@@ -1875,7 +1972,17 @@ class AutonomousRunner:
         if count < FROZEN_LOOP_ESCALATION_AFTER:
             return
 
-        if state.get("emitted_for_current_streak", False):
+        already_emitted = state.get("emitted_for_current_streak", False)
+        last_emitted_count = state.get("last_emitted_count", 0)
+        growth_since_emit = count - last_emitted_count
+        # Suppress only while the streak is already-reported AND has grown by a
+        # sane, sub-threshold amount since that report. A negative delta is
+        # semantically impossible on a live streak (the emission count can't
+        # exceed the current length) — it means the state is corrupt, so we
+        # fail TOWARD signal and re-emit rather than let a bogus-high
+        # last_emitted_count silence the gate forever (the exact failure this
+        # re-arm exists to prevent).
+        if already_emitted and 0 <= growth_since_emit < FROZEN_LOOP_REEMIT_AFTER:
             return
 
         streak_start_ts = state.get("streak_start_ts") or 0
@@ -1887,10 +1994,13 @@ class AutonomousRunner:
                 "reason": "frozen_loop_all_continue",
                 "consecutive_cycles": count,
                 "streak_start_ts": streak_start_ts,
+                # True when this is a staleness re-arm of an already-reported
+                # streak, False on the streak's first escalation.
+                "reemit": already_emitted,
                 "total_evidence_store_size": len(self.state.list_all("evidence")),
             },
         )
-        self._save_escalation_state(streak_start_ts, emitted_ts)
+        self._save_escalation_state(streak_start_ts, emitted_ts, count)
         self._write_frozen_loop_handoff(count, streak_start_ts)
 
     def _write_frozen_loop_handoff(self, consecutive_cycles: int, streak_start_ts: int) -> None:

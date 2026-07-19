@@ -243,6 +243,37 @@ def test_top_up_keeps_environmentally_blocked_as_formulated(runner: AutonomousRu
             f"{h.id} should remain FORMULATED, not INFEASIBLE"
 
 
+def test_pool_skip_reason_classifies_each_block_type() -> None:
+    """Parse-only classifier that makes `skipped_not_promotable` attributable.
+    Must distinguish a structural block (off-universe timeframe like an
+    orphaned 4h claim) from a transient one (in-universe pair still filling
+    its bar history) — the two demand different operator responses."""
+    def h(tags: list[str]) -> Hypothesis:
+        return Hypothesis(claim="c", rationale="r", falsification_criteria="f", tags=tags)
+
+    assert AutonomousRunner._pool_skip_reason(h([])) == "unparseable_tags"
+    assert AutonomousRunner._pool_skip_reason(h(["eth_usdt", "4h"])) == "off_universe_timeframe"
+    assert AutonomousRunner._pool_skip_reason(h(["sol_usdt", "1h"])) == "insufficient_bars_or_fetch"
+
+
+def test_top_up_logs_per_hypothesis_skip_reason(runner: AutonomousRunner) -> None:
+    """The methodology log must record *which* hypotheses were skipped and
+    *why*, so a permanently-stuck pool (all off_universe_timeframe) is
+    diagnosable rather than an opaque `skipped_not_promotable: N`."""
+    import json
+
+    sol = _save_h(runner, "SOL weekend skip", ["sol_usdt", "1h"], HypothesisStatus.FORMULATED)
+    eth_4h = _save_h(runner, "ETH 4h drift", ["eth_usdt", "4h"], HypothesisStatus.FORMULATED)
+
+    runner._top_up_from_formulated_pool([])
+
+    entries = [json.loads(line) for line in runner.methodology_log.read_text().splitlines()]
+    top_up = next(e for e in entries if e.get("phase") == "auto_top_up")
+    detail = {d["id"]: d["reason"] for d in top_up["skipped_not_promotable_detail"]}
+    assert detail[sol.id] == "insufficient_bars_or_fetch"
+    assert detail[eth_4h.id] == "off_universe_timeframe"
+
+
 def test_top_up_cleans_infeasible_even_when_target_filled(runner: AutonomousRunner) -> None:
     """Even when `current` is already at TOP_UP_TARGET, claim-level
     infeasible entries in the pool MUST be marked — otherwise the pool
