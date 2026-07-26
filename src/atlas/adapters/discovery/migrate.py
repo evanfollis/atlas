@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -42,9 +43,15 @@ from atlas.models.evidence import Evidence, EvidenceDirection
 from atlas.models.hypothesis import Hypothesis, HypothesisStatus
 
 
-DEFAULT_SCHEMA_DIR = Path(
+_COMPAT_SCHEMA_DIR = Path(
     "/opt/workspace/projects/context-repository/spec/discovery-framework/schemas"
 )
+
+
+def default_schema_dir() -> Path:
+    """Resolve the discovery-contract path with a compatibility default."""
+
+    return Path(os.environ.get("ATLAS_CANON_SCHEMA_DIR", _COMPAT_SCHEMA_DIR))
 
 
 def _load_schema_registry(schema_dir: Path):
@@ -303,8 +310,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--atlas", type=Path, default=Path.cwd(),
                     help="atlas repo root (default: cwd)")
-    ap.add_argument("--schemas", type=Path, default=DEFAULT_SCHEMA_DIR,
-                    help=f"schema dir (default: {DEFAULT_SCHEMA_DIR})")
+    default_schemas = default_schema_dir()
+    ap.add_argument("--schemas", type=Path, default=default_schemas,
+                    help=f"schema dir (default: {default_schemas})")
     ap.add_argument("--dry-run", action="store_true",
                     help="validate only; do not write .canon/")
     args = ap.parse_args()

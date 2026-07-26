@@ -18,12 +18,13 @@ the CLI exists for development and debugging. It contains no in-product LLM code
 
 **Lifecycle.** `active` (deployed). This is the one canonical implementation;
 there is no successor. An earlier, unrelated differentiable-programming
-exploration (`crypto-agent-dp-lab`) is an archived predecessor, not a successor —
-its thesis was never validated.
+exploration,
+[crypto-agent-dp-lab](https://github.com/evanfollis/crypto-agent-dp-lab), is an
+archived predecessor, not a successor—its thesis was never validated.
 
 **What is verified today — and what is not claimed.**
 
-- Verified: 191-test hermetic suite green; the promotion gate, walk-forward
+- Verified: 199-test hermetic suite green; the promotion gate, walk-forward
   math, statistical tests, the forward-prediction ledger/scorer, and the S3-P2
   escalation gate all have coverage; the loop runs autonomously and scores its
   forward predictions unattended.
@@ -48,6 +49,8 @@ make check    # lint + hermetic tests + repo/clean/prompt validation
   roles, runtime paths, deployment, and agentic-safety posture.
 - `docs/CASE_STUDY.md` — outsider-legible, truthful account of what has and
   hasn't been demonstrated.
+- `docs/lineage/crypto-agent-dp-lab.md` — why the earlier differentiable-
+  programming prototype remains a separate, unvalidated archive.
 - `AGENTS.md` — concise agent/contributor instructions; `CLAUDE.md` — full
   governance and promotion-gate rules.
 - `repo.toml` — shape/lifecycle/risk declaration (ADR-0050).

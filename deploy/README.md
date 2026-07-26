@@ -19,6 +19,8 @@ the same session must either:
 1. **Push and restart**:
    ```
    git push origin main
+   sudo install -m644 deploy/atlas-runner.service /etc/systemd/system/
+   sudo systemctl daemon-reload
    sudo systemctl restart atlas-runner.service
    ```
    Then verify with `scripts/deploy-check.sh` and `journalctl -u atlas-runner -n 20 --no-pager`.
@@ -43,6 +45,19 @@ sudo install -m644 deploy/atlas-runner.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now atlas-runner.service
 ```
+
+The versioned unit sets
+`ATLAS_RUNTIME_ROOT=/opt/workspace/runtime/projects/atlas`. Mutable state lives
+under `state/`, `sessions/`, `runs/`, and `cache/`. Legacy in-checkout paths are
+compatibility symlinks, so older operator commands remain valid. The tracked
+`graph/causal_graph.json` deliberately remains in the checkout pending its own
+scientific-record migration.
+
+The service currently retains an explicit, dated root exception (ASG-001).
+Within that exception it has no Linux capabilities, cannot gain privileges,
+sees a read-only host filesystem, and may write only the runtime root, shared
+telemetry/handoff sinks, and the tracked graph. A non-root cutover requires a
+separate ownership/recovery canary.
 
 ## Operational commands
 

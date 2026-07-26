@@ -77,13 +77,25 @@ Known unresolved tensions (deferred migration items, not silently accepted):
 
 ## Runtime state and paths
 
-Hosted runtime state currently lives in the repo working tree (`.atlas/`,
-`sessions/`, `reports/`, root `*.jsonl`) and at the workspace telemetry sink
-`/opt/workspace/runtime/.telemetry/events.jsonl`. The target convention is
-`/opt/workspace/runtime/projects/atlas/`. Externalizing the in-tree runtime
-state is a compatibility migration (per-path mapping + the live writer +
-rollback) and is deferred; this pass externalizes only the previously-hardcoded
-telemetry/handoff paths behind config (defaults preserve current behavior).
+Production sets `ATLAS_RUNTIME_ROOT=/opt/workspace/runtime/projects/atlas`:
+
+- `state/` — object store, predictions, methodology, revalidation queue;
+- `sessions/` — append-only event histories;
+- `runs/` — cycle reports; and
+- `cache/` — market/alternative data caches.
+
+When the variable is unset, local development retains the historical
+in-checkout paths. Production's old paths are compatibility symlinks to the
+external tree, so operator tooling does not fork state. The tracked
+`graph/causal_graph.json` deliberately remains in the checkout pending its
+separate reviewed scientific-record migration. Telemetry and handoff locations
+remain independently injectable through `ATLAS_TELEMETRY_PATH`,
+`ATLAS_HANDOFF_DIR`, or their `ATLAS_WORKSPACE_ROOT` defaults.
+
+The manual discovery-canon adapter reads the published context-repository
+schemas from its historical path by default. `ATLAS_CANON_SCHEMA_DIR`
+provides the coordinated-relocation hatch; explicit `--schemas` remains
+highest precedence. Schema and conformance paths are not moved by Atlas.
 
 ## Deployment
 
@@ -101,8 +113,11 @@ exceptions in `supervisor/system/agentic-safety-gap-register.md`:
 - **ASG-001** (root execution): the service runs as root. Non-root identity is
   host-wide ADR-class work (ownership migration of `.atlas/`, graph, venv,
   telemetry), explicitly out of scope for this repo refactor.
-- **ASG-002** (containment): systemd filesystem hardening is being added to the
-  unit; process/network default-deny is fleet-wide work.
+- **ASG-002** (containment): the versioned unit removes capabilities, blocks
+  privilege gain, makes the host filesystem read-only, restricts writable
+  paths, hides host devices/processes, and bounds tasks/memory. Network remains
+  limited by address family rather than destination because Atlas needs public
+  exchange access; destination allowlisting is fleet-wide work.
 - **ASG-003** (ambient credentials): only secret is `DUNE_API_KEY` (for the
   dormant Dune module); no exchange keys (public Bitstamp OHLCV).
 - **ASG-004** (trajectory/outcome evidence — repo-specific, required for

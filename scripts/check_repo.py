@@ -8,10 +8,10 @@ Run via `make check`. Three gates, none of which mask failures:
      - authoritative / historical paths must exist;
      - runtime / generated paths must exist AND be excluded from source
        control (nothing tracked under them).
-2. Prompt inventory — Atlas ships zero in-product prompt/LLM artifacts
-   (prior prompteval scan = 0). Assert that remains true so a new ungoverned
-   prompt surface can't land silently (ADR-0039). If one ever appears, this
-   fails and directs the author to the create-eval-loop skill.
+2. Prompt inventory — Atlas ships zero in-product prompt/LLM artifacts, but its
+   contributor charters are behavior-shaping prompts. Validate the enforced
+   inventory and accepted release baselines locally, and assert that no new
+   in-product prompt appears silently (ADR-0039).
 3. Truthful clean-check — the working tree must be clean EXCEPT for
    `graph/causal_graph.json`, which the live runner rewrites every cycle
    (attributed dirty/live state, preserved by design). Any *other* dirty path
@@ -22,6 +22,8 @@ Exit non-zero on any failure.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import subprocess
 import sys
 import tomllib
@@ -98,6 +100,7 @@ def check_repo_toml() -> list[str]:
 
 
 def check_prompt_inventory() -> list[str]:
+    errors: list[str] = []
     hits: list[str] = []
     for py in (REPO / "src").rglob("*.py"):
         text = py.read_text(errors="ignore").lower()
@@ -105,12 +108,106 @@ def check_prompt_inventory() -> list[str]:
             if pat.lower() in text:
                 hits.append(f"{py.relative_to(REPO)}: matches {pat!r}")
     if hits:
-        return [
+        errors.extend([
             "ungoverned prompt/LLM surface detected in src (ADR-0039). "
             "Run the create-eval-loop skill before shipping:",
             *hits,
-        ]
-    return []
+        ])
+
+    inventory_path = REPO / ".prompteval" / "inventory.json"
+    if not inventory_path.exists():
+        return [*errors, "missing .prompteval/inventory.json"]
+    inventory = json.loads(inventory_path.read_text())
+    if inventory.get("enforce") is not True:
+        errors.append("prompt inventory ratchet must be enforce=true")
+
+    for entry in inventory.get("prompts", []):
+        if entry.get("status") == "ungoverned":
+            errors.append(f"ungoverned prompt in enforced inventory: {entry.get('file')}")
+        if entry.get("status") != "governed":
+            continue
+
+        prompt_id = entry.get("id")
+        spec_dir = REPO / ".prompteval" / str(prompt_id)
+        spec_path = spec_dir / "spec.json"
+        baseline_path = spec_dir / "baseline.json"
+        if not spec_path.exists() or not baseline_path.exists():
+            errors.append(f"{prompt_id}: missing spec.json or baseline.json")
+            continue
+
+        spec = json.loads(spec_path.read_text())
+        baseline = json.loads(baseline_path.read_text())
+        source = spec.get("source", {})
+        if source.get("type") != "whole_file":
+            errors.append(f"{prompt_id}: repo-local gate supports whole_file only")
+            continue
+        source_path = REPO / source.get("file", "")
+        if not source_path.is_file():
+            errors.append(f"{prompt_id}: source file missing: {source.get('file')}")
+            continue
+
+        def canonical(obj: object) -> str:
+            return json.dumps(
+                obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            )
+
+        def digest(obj: object) -> str:
+            return hashlib.sha256(canonical(obj).encode()).hexdigest()[:16]
+
+        prompt_version = "pv-" + digest({
+            "t": source_path.read_text(),
+            "m": spec.get("model", ""),
+            "p": spec.get("params", {}),
+        })
+        executor = spec.get("executor") or {}
+        spec_hash = "sh-" + digest({
+            "source": source,
+            "executor": executor,
+            "argv_files": {},
+            "dep_files": {},
+            "judge": spec.get("judge"),
+            "gate": spec.get("gate"),
+        })
+
+        cases: list[dict] = []
+        for filename in ("cases.jsonl", "holdout.jsonl"):
+            path = spec_dir / "golden" / filename
+            if not path.exists():
+                errors.append(f"{prompt_id}: missing golden/{filename}")
+                continue
+            for line in path.read_text().splitlines():
+                if line.strip():
+                    cases.append(json.loads(line))
+        material = sorted(
+            canonical({
+                "id": case.get("id"),
+                "checks": case.get("checks"),
+                "status": case.get("status"),
+                "must_pass": case.get("must_pass", True),
+                "provenance": case.get("provenance"),
+            })
+            for case in cases
+            if case.get("status") != "retired"
+        )
+        golden_hash = "gh-" + digest({"cases": material, "gate": spec.get("gate", {})})
+
+        expected = {
+            "prompt_version": prompt_version,
+            "spec_hash": spec_hash,
+            "golden_hash": golden_hash,
+        }
+        for field, value in expected.items():
+            if baseline.get(field) != value:
+                errors.append(
+                    f"{prompt_id}: stale baseline {field} "
+                    f"({baseline.get(field)!r} != {value!r})"
+                )
+        if baseline.get("passed") is not True or baseline.get("release") is not True:
+            errors.append(f"{prompt_id}: baseline is not an accepted passing release")
+        if baseline.get("accepted_from_cache") is not False:
+            errors.append(f"{prompt_id}: accepted baseline must be no-cache")
+
+    return errors
 
 
 def check_clean_tree() -> list[str]:

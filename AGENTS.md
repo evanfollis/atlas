@@ -34,6 +34,14 @@ are stale (known gotcha). Tests are hermetic (no network/credentials).
 - **`_maybe_escalate_frozen_loop` (S3-P2) requires `adversarial-review.sh`
   before any commit** — it has a long bug history. No exceptions.
 - **Default exchange is Bitstamp** (deep history; Binance/Bybit geo-blocked).
+- Refactor the large runner only along verified responsibility seams, with
+  focused characterization tests and staged, reversible migration.
+- `CURRENT_STATE.md` is orientation, never scientific evidence; verify claims
+  against the StateStore, evidence records, and graph before acting.
+- Runtime moves copy and reconcile state before cutover, preserve compatibility
+  plus rollback, and require a canary with durable cycle/outcome evidence.
+  Never delete the prior paths during cutover; retain compatibility symlinks
+  and a recoverable backup until the canary is verified.
 
 ## Where to load more
 
@@ -52,14 +60,16 @@ are stale (known gotcha). Tests are hermetic (no network/credentials).
   it into unrelated commits. Commit runner-owned graph drift separately.
 - `.atlas/`, `sessions/`, `reports/`, `data/`, and the root `*.jsonl` files are
   runtime state (gitignored). Do not commit them.
-- Deploy = `systemctl restart atlas-runner.service` (local systemd; no
-  push-to-main webhook). "Pushed" is not "deployed." Canary + verify a cycle
-  after restart; keep rollback.
+- Deploy = install the versioned unit when it changed, then
+  `systemctl restart atlas-runner.service` (local systemd; no push-to-main
+  webhook). "Pushed" is not "deployed." Canary + verify a cycle after restart;
+  keep rollback.
 - Containment posture is `agentic` with open dated exceptions ASG-001..004
   (root execution etc.) in `supervisor/system/agentic-safety-gap-register.md`.
+  Landed systemd hardening does not close the deferred non-root cutover.
 
 ## Definition of done
 
 `make check` green from a clean checkout; changed prompt/instruction surfaces
-eval-governed (ADR-0039); production changes carry a real-outcome verification
-receipt and rollback; CURRENT_STATE.md updated.
+carry a fresh no-cache ADR-0039 release baseline; production changes carry a
+real-outcome verification receipt and rollback; CURRENT_STATE.md updated.

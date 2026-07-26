@@ -12,14 +12,16 @@ from atlas.models.experiment import Experiment, ExperimentStatus
 from atlas.models.hypothesis import Hypothesis, HypothesisStatus
 from atlas.models.primitive import ReasoningPrimitive
 from atlas.models.session import CycleOutcome, CycleStatus, ResearchCycle
+from atlas.runtime_paths import resolve_runtime_paths
 from atlas.storage.event_store import EventStore
 from atlas.storage.graph_store import GraphStore
 from atlas.storage.state_store import StateStore
 
 BASE_DIR = Path.cwd()
-SESSIONS_DIR = BASE_DIR / "sessions"
-GRAPH_DIR = BASE_DIR / "graph"
-STATE_DIR = BASE_DIR / ".atlas"
+RUNTIME_PATHS = resolve_runtime_paths(BASE_DIR)
+SESSIONS_DIR = RUNTIME_PATHS.sessions
+GRAPH_DIR = RUNTIME_PATHS.graph
+STATE_DIR = RUNTIME_PATHS.state
 
 _store = StateStore(STATE_DIR)
 
@@ -181,7 +183,7 @@ def experiment_run(experiment_id: str, symbol: str, timeframe: str, since: str |
     alpha = h_data.get("significance_threshold", 0.05) if h_data else 0.05
 
     click.echo(f"Fetching {symbol} {timeframe} data...")
-    md = MarketData(cache_dir=BASE_DIR / "data")
+    md = MarketData(cache_dir=RUNTIME_PATHS.cache)
     prices_df = md.fetch_ohlcv(symbol=symbol, timeframe=timeframe, since=since, limit=limit)
     prices = prices_df["close"]
 
@@ -516,7 +518,7 @@ def scan_signals(symbol: str, timeframe: str) -> None:
     from atlas.data.market import MarketData
     from atlas.generation.signals import scan_all
 
-    md = MarketData(cache_dir=BASE_DIR / "data")
+    md = MarketData(cache_dir=RUNTIME_PATHS.cache)
     df = md.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=500)
     signals = scan_all(df)
 
@@ -528,8 +530,8 @@ def scan_signals(symbol: str, timeframe: str) -> None:
         click.echo(f"[{s.strength:.2f}] {s.method}: {s.description}")
 
 
-METHODOLOGY_LOG = BASE_DIR / "methodology.jsonl"
-REVAL_QUEUE = BASE_DIR / "pending_revalidation.jsonl"
+METHODOLOGY_LOG = RUNTIME_PATHS.methodology
+REVAL_QUEUE = RUNTIME_PATHS.revalidation_queue
 
 
 @cli.command("ingest-finding")
@@ -578,11 +580,15 @@ def strategy_readiness() -> None:
     spec.
     """
     from atlas.runner import (
+        AutonomousRunner,
         FROZEN_LOOP_ESCALATION_AFTER,
         evaluate_promotion_gate,
     )
 
-    state = StateStore(Path(".atlas"))
+    # Resolve at command invocation time: CliRunner and users may change cwd
+    # after importing this module. Production still follows ATLAS_RUNTIME_ROOT.
+    command_paths = resolve_runtime_paths(Path.cwd())
+    state = StateStore(command_paths.state)
 
     # Hypothesis status counts.
     hyps = [Hypothesis.model_validate(d) for d in state.list_all("hypotheses")]
@@ -619,7 +625,7 @@ def strategy_readiness() -> None:
     # All-continue streak from telemetry (matches the runner's gate).
     streak = 0
     streak_evidence_size = None
-    telemetry = Path("/opt/workspace/runtime/.telemetry/events.jsonl")
+    telemetry = AutonomousRunner.TELEMETRY_PATH
     if telemetry.exists():
         completed: list[dict] = []
         with open(telemetry) as f:

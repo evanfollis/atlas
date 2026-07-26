@@ -9,12 +9,51 @@ StartLimitBurst=3
 [Service]
 Type=simple
 User=root
+Group=root
+UMask=0027
 WorkingDirectory=/opt/workspace/projects/atlas
+Environment=ATLAS_WORKSPACE_ROOT=/opt/workspace
+Environment=ATLAS_RUNTIME_ROOT=/opt/workspace/runtime/projects/atlas
 ExecStart=/opt/workspace/projects/atlas/.venv/bin/atlas run --interval 3600
 Restart=on-failure
 RestartSec=300
 StandardOutput=journal
 StandardError=journal
+
+# Bounded root exception (ADR-0050 / ASG-001): non-root requires a separate
+# ownership migration for the tracked graph and shared telemetry/handoff sinks.
+# Until then, remove capabilities and make the host read-only except for the
+# explicit Atlas write surfaces.
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/opt/workspace/runtime/projects/atlas
+ReadWritePaths=/opt/workspace/runtime/.telemetry
+ReadWritePaths=/opt/workspace/supervisor/handoffs/INBOX
+ReadWritePaths=/opt/workspace/projects/atlas/graph
+
+# Bound accidental runaway work without constraining normal scipy/pandas use.
+TasksMax=64
+MemoryMax=1G
 
 [Install]
 WantedBy=multi-user.target

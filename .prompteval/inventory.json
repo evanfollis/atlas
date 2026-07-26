@@ -1,0 +1,35 @@
+{
+  "enforce": true,
+  "note": "Atlas has no in-product LLM prompt. AGENTS.md is the sole behavior-shaping agent charter and is governed under ADR-0039.",
+  "prompts": [
+    {
+      "file": "AGENTS.md",
+      "id": "atlas-agent-charter",
+      "status": "governed"
+    },
+    {
+      "file": "CLAUDE.md",
+      "id": "atlas-legacy-charter",
+      "status": "governed",
+      "note": "Detailed governance and ADR-0021 context-always-load source retained during the coupled loader migration."
+    },
+    {
+      "file": "CURRENT_STATE.md",
+      "id": null,
+      "status": "not-a-prompt",
+      "note": "Operational orientation loaded as untrusted state; AGENTS.md explicitly forbids treating it as scientific evidence or operating authority."
+    },
+    {
+      "file": "scripts/check_repo.py",
+      "id": null,
+      "status": "not-a-prompt",
+      "note": "Validator source quotes prompt detection patterns."
+    },
+    {
+      "file": "tests",
+      "id": null,
+      "status": "not-a-prompt",
+      "note": "Test fixtures may quote prompt-like strings."
+    }
+  ]
+}

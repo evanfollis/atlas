@@ -14,6 +14,18 @@ Autonomous research system that uses the scientific method to build causal graph
 
 **This is NOT a human-in-the-loop tool.** The CLI exists for development and debugging. Production Atlas runs as a continuous autonomous loop: signal intake → hypothesis generation → experiment execution → evidence evaluation → decision → graph update → repeat.
 
+`AGENTS.md` is the canonical concise instruction front door. This file retains
+the ADR-0021 `context-always-load` block and detailed governance until the
+SessionStart loader migration is verified. Changes to either instruction
+surface require a fresh no-cache ADR-0039 release baseline.
+
+Operational containment is improved but incomplete: the service carries a
+bounded, dated root exception (ASG-001) and must not be described as fully
+meeting the agentic containment baseline. Promotion always requires at least
+two strong supporting records from distinct experiments, at least one OOS or
+live record, and no unaddressed strong contradiction; in-sample significance
+alone never qualifies.
+
 ## Operating Principles
 
 ### How to Work in This Repo

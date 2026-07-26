@@ -37,6 +37,7 @@ from atlas.models.hypothesis import Hypothesis, HypothesisStatus
 from atlas.models.prediction import Prediction, prediction_id
 from atlas.models.primitive import ReasoningPrimitive
 from atlas.models.session import CycleOutcome, CycleStatus, ResearchCycle
+from atlas.runtime_paths import RuntimePaths, resolve_runtime_paths
 from atlas.storage.event_store import EventStore
 from atlas.storage.graph_store import GraphStore
 from atlas.storage.prediction_store import PredictionStore
@@ -181,15 +182,21 @@ def evaluate_promotion_gate(evidence: list[Evidence]) -> dict:
 class AutonomousRunner:
     """Runs the full research loop autonomously."""
 
-    def __init__(self, base_dir: Path, exchange_id: str = "bitstamp") -> None:
-        self.base_dir = base_dir
-        self.state = StateStore(base_dir / ".atlas")
-        self.market = MarketData(cache_dir=base_dir / "data", exchange_id=exchange_id)
-        self.alt_data = AlternativeData(cache_dir=base_dir / "data")
-        self.events = EventStore(base_dir / "sessions")
-        self.graph_store = GraphStore(base_dir / "graph")
-        self.predictions = PredictionStore(base_dir / "predictions.jsonl")
-        self.methodology_log = base_dir / "methodology.jsonl"
+    def __init__(
+        self,
+        base_dir: Path,
+        exchange_id: str = "bitstamp",
+        runtime_root: Path | None = None,
+    ) -> None:
+        self.base_dir = base_dir.resolve()
+        self.paths: RuntimePaths = resolve_runtime_paths(self.base_dir, runtime_root)
+        self.state = StateStore(self.paths.state)
+        self.market = MarketData(cache_dir=self.paths.cache, exchange_id=exchange_id)
+        self.alt_data = AlternativeData(cache_dir=self.paths.cache)
+        self.events = EventStore(self.paths.sessions)
+        self.graph_store = GraphStore(self.paths.graph)
+        self.predictions = PredictionStore(self.paths.predictions)
+        self.methodology_log = self.paths.methodology
 
     def _save_obj(self, kind: str, obj_id: str, data: dict) -> None:
         self.state.save(kind, obj_id, data)
@@ -1815,7 +1822,9 @@ class AutonomousRunner:
         telemetry collector rotated yesterday's events to a `.gz` archive
         the gate did not read.
         """
-        return self.base_dir / ".atlas" / "escalation_state.json"
+        # StateStore is the authoritative location and is also present in
+        # lightweight test/adapter runners that intentionally bypass __init__.
+        return self.state.base_dir / "escalation_state.json"
 
     def _load_escalation_state(self) -> dict:
         """Return the persistent streak state, validated.
@@ -2058,7 +2067,7 @@ class AutonomousRunner:
         while True:
             try:
                 report = self.run_cycle()
-                reports_dir = self.base_dir / "reports"
+                reports_dir = self.paths.reports
                 reports_dir.mkdir(exist_ok=True)
                 ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
                 with open(reports_dir / f"cycle_{ts}.json", "w") as f:
