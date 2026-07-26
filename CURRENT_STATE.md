@@ -7,19 +7,23 @@ updated: 2026-07-26T21:20:00Z
 
 # CURRENT_STATE — atlas
 
-**Last updated**: 2026-07-26T21-20Z — July 2026 repository/safety migration
-prepared and verified in the checkout; **DELIVERY STATE:
-code_landed_NOT_deployed until the commit is pushed and the service canary
-passes.** The shared repository contract, concise `AGENTS.md`, governed
-instruction baselines, 199-test + ruff gate, external runtime-root support,
-`ATLAS_CANON_SCHEMA_DIR` compatibility hatch, SHA-pinned least-privilege CI,
-bounded-root systemd hardening, and honest `crypto-agent-dp-lab` lineage are in
-the release tranche. Scientific state is unchanged: 0 promoted primitives and
-0 causal edges. `graph/causal_graph.json` remains runner-owned and was neither
-staged nor rewritten by this migration. Deployment must copy/reconcile mutable
-state to `/opt/workspace/runtime/projects/atlas`, preserve rollback plus legacy
-symlinks, install the versioned unit, restart, and verify a real
-`cycle.completed` outcome before this entry is closed as deployed.
+**Last updated**: 2026-07-26T21-23Z — **July 2026 repository/safety migration
+PUSHED + DEPLOYED + VERIFIED.** Main commits `59093ad` and `d98689b`; both
+GitHub CI runs green. The shared repository contract, concise `AGENTS.md`, two
+fresh governed instruction baselines, 199-test + ruff gate,
+`ATLAS_CANON_SCHEMA_DIR` compatibility hatch, Node-24 SHA-pinned
+least-privilege CI, bounded-root systemd hardening, and honest
+`crypto-agent-dp-lab` lineage are live. Mutable state was checksum-reconciled to
+`/opt/workspace/runtime/projects/atlas`; the prior state and unit are retained
+under `.migration-backup-20260726T2125Z`, and legacy paths are compatibility
+symlinks. Canary at 21:22:41Z emitted real `cycle.completed`
+(`signals_found=22`, `hypotheses_evaluated=0`, `graph_nodes=69`,
+`graph_edges=0`, `total_evidence_store_size=313`) with `NRestarts=0`; deploy
+check passed. Scientific state is unchanged: 0 promoted primitives and 0 causal
+edges. `graph/causal_graph.json` remains runner-owned and was not staged; its
+21:22:41 write is the verified canary cycle, not contributor drift. Root
+execution remains an explicit ASG-001 exception; systemd hardening does not
+claim the deferred non-root cutover is complete.
 
 **Last updated**: 2026-07-20T02-21-22Z — Reflection pass. Attended session (Opus 4.8) landed 5 commits: `e5a1e82` (skip-ID + pool legibility + S3-P2 re-arm + tests 184→191), `28374a0` (CI gate), `4781d4f` (case study), `16e697c` (graph drift with provenance), `eaa8104` (CURRENT_STATE). All prior top-3 carry-forwards resolved. **`symbol=None` fix REJECTED** — field doesn't exist on `Hypothesis` model (would AttributeError); prior 10+ reflection entries proposing this were wrong. **Honest state: loop is genuinely hypothesis-space-exhausted** (22 signals → 0 new hypotheses; all map to 69 refuted nodes). S3-P2 re-arm live: `consecutive_cycles=863, reemit:true` fired. URGENT in `supervisor/handoffs/INBOX/` awaiting general session ACK. Telemetry healthy (2 post-deploy cycles confirm instrumentation). **OPEN: principal decision needed on pod trajectory** (new detectors, hold, or deprecate). 3 `off_universe_timeframe` hypotheses are permanently orphaned — candidate INFEASIBLE. Codex review #5 dispositions still missing.
 
