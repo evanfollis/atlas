@@ -2,8 +2,10 @@
 # The Makefile only delegates; business logic stays in the package and pyproject.
 # Required checks never mask failures (no `|| true`, no ignored exit codes).
 
-PY := .venv/bin/python
-PIP := .venv/bin/pip
+# Use the project venv when present (local dev), else the ambient interpreter
+# (CI installs into the runner's Python). Keeps `make check` identical in both.
+PY := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python)
+PIP := $(PY) -m pip
 
 .DEFAULT_GOAL := help
 
@@ -23,7 +25,7 @@ help:  ## Show available targets
 
 setup:  ## Create/refresh the local dev environment
 	test -d .venv || python3 -m venv .venv
-	$(PIP) install -e ".[dev]"
+	.venv/bin/python -m pip install -e ".[dev]"
 
 # check composes every applicable deterministic gate. clean-check runs last so it
 # observes the post-test tree. Prompt-inventory + repo.toml validation live in
