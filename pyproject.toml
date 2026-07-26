@@ -21,9 +21,38 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.8", "build>=1.2"]
 
 [project.scripts]
 atlas = "atlas.cli:cli"
+
+[tool.ruff]
+# Proportionate lint gate (ADR-0050): high-signal correctness rules that pass
+# clean on the existing 7.6k-LOC codebase, not a wholesale restyle. Broader
+# style/complexity rules are a later, reviewed ramp — see docs/architecture.md.
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv", "scripts/zmf_delta.py", "scripts/zmf_eth.py",
+    "scripts/fng_event_study.py", "scripts/funding_reset_events.py",
+    "scripts/dispersion_narrow.py", "scripts/lag6_stationarity.py",
+    "scripts/events_btc_car.py"]
+
+[tool.ruff.lint]
+# E9 (syntax/runtime), F (pyflakes: undefined names, unused imports),
+# B (bugbear: real footguns). Autofixable ones were fixed; the rest pass.
+select = ["E9", "F", "B"]
+# B008: Click/pydantic intentionally use calls in argument defaults.
+# F841/B007 (unused locals / unused loop vars): a handful remain, mostly in
+# dormant research modules (event_study, derivatives, signals). Deferred to a
+# later proportionate ramp rather than editing dormant/live code for cosmetics
+# in this first conformance pass — see docs/architecture.md §Type-and-lint ramp.
+ignore = ["B008", "F841", "B007"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+# Advisory ramp: strict typing of the full runtime (esp. the 2066-line runner)
+# is deferred. typecheck currently covers models/ + storage/ only.
 
 [tool.setuptools.packages.find]
 where = ["src"]

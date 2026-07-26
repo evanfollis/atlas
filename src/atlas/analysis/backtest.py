@@ -1,7 +1,7 @@
 """Vectorized backtesting — signal series to return metrics."""
 
 import inspect
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd

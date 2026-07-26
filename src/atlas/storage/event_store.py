@@ -1,6 +1,5 @@
 """Append-only JSONL event store, one file per session."""
 
-import json
 from pathlib import Path
 
 from atlas.models.events import SessionEvent

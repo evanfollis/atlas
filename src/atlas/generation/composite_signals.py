@@ -9,8 +9,6 @@ Design principle: trade rarely, with high conviction. Each composite signal
 should fire 5-20 times per year, not hundreds of times.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd

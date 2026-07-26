@@ -5,9 +5,7 @@ aligned to UTC midnight timestamps for easy joining with price data.
 """
 
 import hashlib
-import json
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from atlas.research.ingest import (
-    _block_content_hash, _evidence_id, claim_hash, due_revalidations,
+    claim_hash, due_revalidations,
     ingest_finding, mark_revalidated, parse_finding,
 )
 

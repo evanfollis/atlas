@@ -56,8 +56,8 @@ def from_mean_reversion_signal(signal: Signal, symbol: str, timeframe: str) -> H
               f"(|z| > 2.0) within {window // 2} periods",
         rationale=f"Observed {reversion_rate:.0%} reversion rate across {n_extremes} extreme events. "
                   f"If structural, a mean-reversion strategy should capture this.",
-        falsification_criteria=f"Buy-the-dip (z < -2) / sell-the-spike (z > 2) strategy "
-                               f"does not produce significant positive returns (p > alpha)",
+        falsification_criteria="Buy-the-dip (z < -2) / sell-the-spike (z > 2) strategy "
+                               "does not produce significant positive returns (p > alpha)",
         tags=[symbol.replace("/", "_").lower(), timeframe, "mean_reversion", f"ma_{window}"],
     )
 
@@ -71,8 +71,8 @@ def from_volume_signal(signal: Signal, symbol: str, timeframe: str) -> Hypothesi
         claim=f"Volume spikes in {symbol} {timeframe} predict {ratio:.1f}x larger price moves",
         rationale=f"Observed {n_spikes} volume spike events where subsequent absolute returns "
                   f"were significantly larger than normal. If structural, this can be traded.",
-        falsification_criteria=f"Post-spike absolute returns do not differ significantly "
-                               f"from normal-volume absolute returns (p > alpha)",
+        falsification_criteria="Post-spike absolute returns do not differ significantly "
+                               "from normal-volume absolute returns (p > alpha)",
         tags=[symbol.replace("/", "_").lower(), timeframe, "volume", "anomaly"],
     )
 
@@ -143,8 +143,8 @@ def from_cross_asset_spread_signal(signal: Signal, symbol: str, timeframe: str) 
               f"({rate:.0%} reversion rate, {window}-period window)",
         rationale=f"The price ratio of {sym_a} to {sym_b} mean-reverts because both assets "
                   f"share common market factors. Extremes reflect temporary dislocations.",
-        falsification_criteria=f"Spread mean-reversion strategy (long underperformer, short outperformer "
-                               f"at |z| > 1.5) does not produce significant positive Sharpe (p > alpha)",
+        falsification_criteria="Spread mean-reversion strategy (long underperformer, short outperformer "
+                               "at |z| > 1.5) does not produce significant positive Sharpe (p > alpha)",
         tags=[sym_a.replace("/", "_").lower(), sym_b.replace("/", "_").lower(),
               timeframe, "spread", "pairs_trading", f"window_{window}"],
     )

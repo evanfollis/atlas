@@ -6,7 +6,7 @@ Bitstamp uses USD pairs; we normalize to USDT-equivalent for consistency.
 
 import hashlib
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import ccxt

@@ -29,12 +29,8 @@ import traceback
 from pathlib import Path
 
 from atlas.adapters.discovery.emit import (
-    EMITTER,
-    INSTANCE_ID,
     PHASE_FOR_STATUS,
     TIER_POLICY_ID,
-    _iso,
-    _sha256_bytes,
     canon_dir,
     emit_claim,
     emit_decision,

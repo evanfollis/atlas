@@ -13,7 +13,7 @@ import pandas as pd
 from atlas.generation.signals import Signal
 from atlas.models.evidence import EvidenceClass, EvidenceQuality
 from atlas.models.prediction import Prediction, prediction_id
-from atlas.runner import AutonomousRunner, PREDICTION_HORIZON_DAYS
+from atlas.runner import AutonomousRunner
 from atlas.storage.prediction_store import PredictionStore
 from atlas.storage.state_store import StateStore
 

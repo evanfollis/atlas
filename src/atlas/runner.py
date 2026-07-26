@@ -13,7 +13,7 @@ import pandas as pd
 
 from atlas.analysis.backtest import run_backtest, walk_forward_backtest
 from atlas.analysis.statistics import bootstrap_sharpe, mean_return_test, sharpe_significance
-from atlas.data.alternative import AlternativeData, align_to_price
+from atlas.data.alternative import AlternativeData
 from atlas.data.market import MarketData
 from atlas.generation.calendar_signals import scan_calendar
 from atlas.generation.composite_hypotheses import COMPOSITE_GENERATORS

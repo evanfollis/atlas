@@ -6,8 +6,6 @@ month-end and US business hours. These produce systematic effects
 that are causally grounded in market microstructure, not statistical accident.
 """
 
-from dataclasses import dataclass
-import numpy as np
 import pandas as pd
 from scipy import stats as sp_stats
 

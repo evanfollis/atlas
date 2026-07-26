@@ -7,7 +7,6 @@ single-process production assumption holds; no file locking (consistent with
 the rest of atlas storage).
 """
 
-import json
 from datetime import datetime
 from pathlib import Path
 

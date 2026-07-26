@@ -1,0 +1,31 @@
+# Repository declaration — Repository Architecture Standard v1.0.0 (ADR-0050).
+# Descriptive metadata only: shape, lifecycle, risk, declared artifact paths.
+# It does not encode workflow/deploy/research-lifecycle state.
+schema_version = 1
+name = "atlas"
+shape = "service"
+lifecycle = "active"
+# `agentic`: Atlas runs unattended as a systemd service, makes and commits
+# decisions, and writes durable state without per-cycle human review. It
+# executes NO model-controlled/LLM code (zero in-product prompt artifacts), so
+# the untrusted-model-output containment controls are largely N/A — but the
+# autonomous, root-running, self-writing operational profile is exactly the risk
+# the ADR-0050 §8 baseline governs. Classified `agentic` (matching the ADR-0050
+# example) so the real containment gaps are tracked, not hidden. Open dated
+# exceptions: ASG-001..004 in supervisor/system/agentic-safety-gap-register.md.
+agentic_risk = "agentic"
+canonical_repository = "https://github.com/evanfollis/atlas"
+
+# Only paths whose invariants can be mechanically checked are declared
+# (validator: authoritative/historical must exist; runtime/generated must exist
+# AND be excluded from source control). `graph/causal_graph.json` is
+# deliberately omitted: it is a tracked file continuously rewritten by the live
+# runner (runtime-role in practice, authoritative-in-Git by history). Resolving
+# that split (append-only guard or externalization) is a tracked migration item
+# — see docs/architecture.md — so it is not declared here rather than declared
+# under a role the validator would (correctly) reject.
+[artifacts]
+authoritative = ["src", "tests", "docs", "deploy", "scripts", "pyproject.toml"]
+runtime = [".atlas", "sessions", "reports", "data", "predictions.jsonl", "methodology.jsonl", "pending_revalidation.jsonl"]
+generated = []
+historical = ["findings", ".reviews"]

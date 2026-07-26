@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 from scipy import stats
 
 from atlas.analysis.statistics import bootstrap_sharpe, mean_return_test, sharpe_significance

@@ -1,5 +1,5 @@
 """Tests for curated events + event-study framework."""
-from datetime import datetime, timezone
+from datetime import timezone
 
 import numpy as np
 import pandas as pd

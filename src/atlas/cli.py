@@ -193,7 +193,7 @@ def experiment_run(experiment_id: str, symbol: str, timeframe: str, since: str |
     click.echo("Running backtest...")
     result = run_backtest(prices, signals)
 
-    click.echo(f"\n--- Backtest Results ---")
+    click.echo("\n--- Backtest Results ---")
     click.echo(f"Total return:      {result.total_return:>10.2%}")
     click.echo(f"Annualized return: {result.annualized_return:>10.2%}")
     click.echo(f"Sharpe ratio:      {result.sharpe_ratio:>10.2f}")

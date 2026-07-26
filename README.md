@@ -1,127 +1,78 @@
 ---
 name: Atlas README
-description: Repo overview — causal reasoning engine for pre-registered research, hypothesis generation, typed evidence, causal graph promotion
+description: Autonomous scientific-method research loop that builds a causal graph of validated market claims via pre-registration, walk-forward OOS, and a code-enforced promotion gate
 type: reference
-updated: 2026-04-23
+updated: 2026-07-26
 ---
 
 # Atlas
 
-Atlas is a causal reasoning engine for structuring research questions, hypotheses, evidence, and next-step experiments.
+**What is this?** Atlas is an autonomous **scientific-method research loop**. It
+generates falsifiable hypotheses, pre-registers a falsification criterion and
+significance threshold, runs walk-forward out-of-sample experiments, records
+typed evidence, and makes an explicit promote / kill / continue / pivot
+decision — building a causal graph of *validated* claims (not free-text
+associations). The core is domain-agnostic; the current application is crypto
+markets (Bitstamp hourly BTC/ETH/SOL). It runs unattended as a systemd service;
+the CLI exists for development and debugging. It contains no in-product LLM code.
 
-It is built for systematic, pre-registered research: you formulate a falsifiable claim, design an experiment against it, record typed evidence, and make an explicit promote / kill / continue / pivot decision. Validated claims are promoted into a causal graph of *reasoning primitives* that later hypotheses can build on. The current application domain is crypto-market microstructure, but the substrate is domain-agnostic.
+**Lifecycle.** `active` (deployed). This is the one canonical implementation;
+there is no successor. An earlier, unrelated differentiable-programming
+exploration (`crypto-agent-dp-lab`) is an archived predecessor, not a successor —
+its thesis was never validated.
 
-This is not a generic knowledge store. Edges in the graph are meant to represent *tested* causal claims, not free-text associations.
+**What is verified today — and what is not claimed.**
 
-## At a glance
+- Verified: 191-test hermetic suite green; the promotion gate, walk-forward
+  math, statistical tests, the forward-prediction ledger/scorer, and the S3-P2
+  escalation gate all have coverage; the loop runs autonomously and scores its
+  forward predictions unattended.
+- **Not claimed**: any validated market edge. The promotion gate has **never
+  fired** — 0 promoted primitives, 0 causal edges, 69 refuted nodes. The only
+  scientific output to date is *negative* knowledge (falsifications and
+  confirmed-null forward windows). Backtests model a 26 bps fee but ignore
+  slippage/funding/liquidity: backtest ≠ live. See `docs/CASE_STUDY.md`.
 
-- Builds and maintains a causal structure of research: hypothesis -> experiment -> evidence -> decision -> primitive.
-- Links concrete findings (markdown writeups, backtests, statistical tests) to the hypothesis that motivated them.
-- Supports systematic iteration: pre-registered falsification criteria, significance thresholds, and a promotion gate enforced in code.
-- Intended for rigorous exploratory workflows where provenance and falsifiability matter — not general note-taking.
+**Fastest meaningful check.**
 
-## Current implementation
+```bash
+make setup    # create/refresh .venv (Python 3.11+)
+make check    # lint + hermetic tests + repo/clean/prompt validation
+```
 
-Honest status, based on what is in this repo today:
+`make help` lists all targets. Tests need no network or credentials.
 
-- **CLI** (`atlas`, entrypoint `src/atlas/cli.py`) with command groups: `hypothesis`, `experiment`, `evidence`, `decision`, `graph`, `cycle`, plus top-level `run` and `scan`. Uses Click.
-- **Object model** (`src/atlas/models/`): `Hypothesis`, `Experiment`, `Evidence`, `ResearchCycle`, `ReasoningPrimitive`, `SessionEvent`, `CausalGraph`. Pydantic v2.
-- **Storage** (`src/atlas/storage/`): JSON state store under `.atlas/`, append-only JSONL session events under `sessions/`, graph snapshots under `graph/`.
-- **Analysis** (`src/atlas/analysis/`): `backtest`, `event_study`, `stationarity`, `statistics`.
-- **Data adapters** (`src/atlas/data/`): `market` (ccxt — default exchange Kraken), `derivatives`, `events`, `alternative`, `dune`.
-- **Generation** (`src/atlas/generation/`): hypothesis and signal generation helpers, including composite variants.
-- **Tests** (`tests/`): backtest, events, promotion gate, signals, state store, stationarity, statistics.
-- **Findings** (`findings/`): markdown writeups of individual experiments; the record of what has actually been tested.
-- **Scripts** (`scripts/`): standalone research scripts behind several findings (e.g. `zmf_delta.py`, `dispersion_narrow.py`, `events_btc_car.py`).
+**Where to go deeper.**
 
-Intended direction (present as scaffolding, not fully autonomous yet): a continuous signal-intake -> hypothesis-generation -> experiment -> decision loop, as sketched in `CLAUDE.md`. Today the loop is driven by a human operator invoking the CLI and scripts; the pieces are wired, the autonomy is not.
+- `docs/architecture.md` — composition roots, dependency direction, artifact
+  roles, runtime paths, deployment, and agentic-safety posture.
+- `docs/CASE_STUDY.md` — outsider-legible, truthful account of what has and
+  hasn't been demonstrated.
+- `AGENTS.md` — concise agent/contributor instructions; `CLAUDE.md` — full
+  governance and promotion-gate rules.
+- `repo.toml` — shape/lifecycle/risk declaration (ADR-0050).
 
 ## Repository layout
 
-- `src/atlas/` — Library and CLI. Object model, storage, analysis, data, generation.
-- `findings/` — Markdown writeups of individual experiments and their decisions. The durable research log.
-- `scripts/` — Standalone Python scripts that produced specific findings.
-- `tests/` — Pytest suite covering the core primitives (state store, promotion gate, statistics, backtest, events).
-- `sessions/`, `graph/`, `.atlas/` — Runtime state: session event logs, graph snapshots, object store. Created on use.
-- `CLAUDE.md` — Operating principles, governance, promotion-gate rules.
+- `src/atlas/` — library + CLI: `models/` (domain), `storage/`, `analysis/`,
+  `data/`, `generation/`, `adapters/`, plus `runner.py` (the loop) and `cli.py`.
+- `tests/` — hermetic pytest suite.
+- `deploy/` — systemd unit (`atlas-runner.service`).
+- `findings/`, `.reviews/` — historical research log and adversarial reviews.
+- `scripts/` — operator tooling (`check_repo.py`, `deploy-check.sh`,
+  `migrate_claim_hash.py`) and older one-off research scripts.
+- Runtime state (`.atlas/`, `sessions/`, `reports/`, `data/`, root `*.jsonl`) is
+  gitignored and created on use. `graph/causal_graph.json` is tracked and
+  rewritten by the live runner — see `docs/architecture.md`.
 
-## Quickstart
+## Promotion gate
 
-Requires Python 3.11+.
-
-```bash
-git clone <this repo>
-cd atlas
-python -m venv .venv && source .venv/bin/activate
-pip install -e .
-```
-
-Minimal end-to-end path using the CLI (creates real state under `.atlas/` and `sessions/`):
-
-```bash
-# 1. Formulate a hypothesis (opens a research cycle)
-atlas hypothesis create \
-  --claim "Mean cross-venue funding predicts 24h BTC returns" \
-  --rationale "Funding level has shown OOS reversal across specs" \
-  --falsification "OOS |t| on z_mf below 1.96 or sign flip"
-
-# 2. Design an experiment against it
-atlas experiment design --hypothesis-id <HID> \
-  --description "IS/OOS regression on 8h grid" \
-  --method statistical_test \
-  --success "OOS |t| >= 1.96, sign consistent" \
-  --failure "OOS |t| < 1.96 or sign flip"
-
-# 3. Record evidence, then make a decision
-atlas evidence record --experiment-id <EID> ...
-atlas decision promote --rationale "..."
-
-# 4. Inspect the causal graph
-atlas graph show
-```
-
-A smoke check that the install works without touching exchanges or network:
-
-```bash
-pytest tests/test_state_store.py tests/test_promotion_gate.py
-```
-
-Scope of that smoke check: it verifies the object model, state persistence, and the promotion-gate logic — not the data adapters or any live research path.
-
-## Research loop
-
-```mermaid
-flowchart LR
-    Q[Research question] --> H[Hypothesis graph]
-    H --> E[Experiment / evidence / findings]
-    E --> C[Causal update<br/>promote / kill / pivot]
-    C --> N[Next experiment]
-    N --> H
-    C -. primitives .-> H
-```
-
-## Not this, not that
-
-- Not a generic wiki or note-taking tool. Content is typed and bound to a hypothesis-experiment-decision lifecycle.
-- Not a general-purpose graph database. The graph stores promoted reasoning primitives with provenance, not arbitrary nodes and edges.
-- Not just a backtest notebook repo. Backtests are one evidence class among several; the point is the causal structure around them.
-
-## Related repos
-
-- [`skillfoundry-harness`](https://github.com/evanfollis/skillfoundry-harness) — runtime semantics and execution substrate.
-- [`skillfoundry-agents`](https://github.com/evanfollis/skillfoundry-agents) — workspace topology, hub, profiles, canonical artifacts.
-- [`context-repository`](https://github.com/evanfollis/context-repository) — abstract epistemic substrate (session unit, event model, reentry path, review path) that Atlas maps onto.
-
-## How this fits into the broader system
-
-- **Atlas** — causal and research reasoning. Owns the lifecycle of hypotheses, evidence, and promoted primitives.
-- **skillfoundry-agents** — workspace topology: hub, profiles, canonical artifacts. How agent work is organized across repos.
-- **skillfoundry-harness** — runtime semantics. How sessions, events, and reentry are actually executed.
-- **context-repository** — the abstract contract these concrete repos conform to.
-
-Atlas's `ResearchCycle` is its session unit; its append-only `sessions/*.jsonl` is its event log; its reentry snapshot and review path are declared in `CLAUDE.md`.
+A claim becomes a promoted reasoning primitive only with ≥2 strong evidence
+records from distinct experiments, at least one out-of-sample or live, meeting
+the pre-registered threshold, with no unaddressed strong contradiction. Enforced
+in code. Pre-registered fields are immutable.
 
 ## Suggested GitHub metadata
 
-- **Description:** Causal reasoning engine for structuring research questions, hypotheses, evidence, and experiments.
-- **Topics:** `causal-reasoning`, `research-infrastructure`, `hypothesis-testing`, `scientific-method`, `experiment-tracking`, `provenance`, `pre-registration`, `quant-research`, `python`, `cli`.
+- **Description:** Autonomous scientific-method research loop building a causal graph of validated market claims (pre-registration, walk-forward OOS, code-enforced promotion gate).
+- **Topics:** `causal-reasoning`, `scientific-method`, `hypothesis-testing`, `pre-registration`, `walk-forward`, `falsification`, `autonomous-agent`, `quant-research`, `python`.
