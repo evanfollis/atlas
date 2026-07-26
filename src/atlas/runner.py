@@ -5,11 +5,20 @@ Runs continuously: scan → generate → test → evaluate → decide → update
 
 import json
 import logging
+import os
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
+
+# Workspace runtime/handoff locations are injected via environment
+# (ADR-0050 §5: source must not hardcode the workspace root). Defaults are the
+# exact pre-existing absolute paths, so behavior is unchanged when unset — this
+# is a reversible path-indirection, not a runtime-tree move.
+_WORKSPACE_ROOT = os.environ.get("ATLAS_WORKSPACE_ROOT", "/opt/workspace")
+_DEFAULT_TELEMETRY_PATH = f"{_WORKSPACE_ROOT}/runtime/.telemetry/events.jsonl"
+_DEFAULT_HANDOFF_DIR = f"{_WORKSPACE_ROOT}/supervisor/handoffs/INBOX"
 
 from atlas.analysis.backtest import run_backtest, walk_forward_backtest
 from atlas.analysis.statistics import bootstrap_sharpe, mean_return_test, sharpe_significance
@@ -1794,8 +1803,8 @@ class AutonomousRunner:
     # S3-P2 frozen-loop escalation
     # --------------------------------------------------------------------
 
-    TELEMETRY_PATH = Path("/opt/workspace/runtime/.telemetry/events.jsonl")
-    SUPERVISOR_HANDOFF_DIR = Path("/opt/workspace/supervisor/handoffs/INBOX")
+    TELEMETRY_PATH = Path(os.environ.get("ATLAS_TELEMETRY_PATH", _DEFAULT_TELEMETRY_PATH))
+    SUPERVISOR_HANDOFF_DIR = Path(os.environ.get("ATLAS_HANDOFF_DIR", _DEFAULT_HANDOFF_DIR))
 
     def _escalation_state_path(self) -> Path:
         """Authoritative dedup state for the frozen-loop gate. Lives under
