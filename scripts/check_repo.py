@@ -78,14 +78,16 @@ def check_repo_toml() -> list[str]:
             errs.append(f"repo.toml {axis}={val!r} not in {sorted(allowed)}")
 
     arts = data.get("artifacts", {})
+    # authoritative/historical are source: they must be present in the checkout.
     for role in ("authoritative", "historical"):
         for p in arts.get(role, []):
             if not (REPO / p).exists():
                 errs.append(f"declared {role} path missing: {p}")
+    # runtime/generated are created at runtime and are absent in a clean
+    # checkout (which `make check` must pass from). The enforceable invariant is
+    # that they are NOT under source control — not that they exist.
     for role in ("runtime", "generated"):
         for p in arts.get(role, []):
-            if not (REPO / p).exists():
-                errs.append(f"declared {role} path missing: {p}")
             tracked = _tracked_under(p)
             if tracked:
                 errs.append(
