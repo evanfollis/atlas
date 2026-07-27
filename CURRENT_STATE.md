@@ -2,10 +2,12 @@
 name: CURRENT_STATE
 description: Front door for atlas — live research-loop state, canon gap closure status, deployment mode
 type: front-door
-updated: 2026-07-27T01:03:43Z
+updated: 2026-07-27T12:55:43Z
 ---
 
 # CURRENT_STATE — atlas
+
+**Last updated**: 2026-07-27T12-55Z — **Administrative tick: handoff triage and archival** (tick 2026-07-27T12-55-43Z). No code changes. Two pending handoffs resolved: (1) lineage reconciliation (`atlas-public-portfolio-lineage-reconciliation-2026-07-26T19-44-16Z.md`) — **closed as malformed dispatch**: referenced completion receipt `general-atlas-public-portfolio-lineage-inventory-complete.md` does not exist; handoff archived at `ARCHIVE/2026-07-27/`; acknowledgment sent to general at `atlas-to-general-lineage-reconciliation-acknowledged-2026-07-27T12-55-43Z.md`; (2) migration handoff (`atlas-july-2026-profiled-repository-migration-2026-07-26T19-57-29Z.md`) — **closed as already complete**: commits 59093ad+d98689b landed 2026-07-26T21:18Z, migration done; handoff archived. Runner continues running; scientific state unchanged (0 promoted primitives, 0 causal edges, 69 refuted nodes, loop hypothesis-space-exhausted). Architecture inventory complete at `general-cross-repo-architecture-atlas-inventory-complete.md`.
 
 **Last updated**: 2026-07-27T01-03Z — **Read-only architectural inventory complete** (tick 2026-07-27T01-03-43Z). No code changes. Produced `/opt/workspace/runtime/.handoff/general-cross-repo-architecture-atlas-inventory-complete.md` covering: composition roots, dependency direction, all 40+ source modules with LOC and loop-role, artifact roles (authoritative/runtime/generated/historical), build/test/lint status (199 passed, ruff clean), dirty-tree ownership (graph/causal_graph.json is sole authorized dirty path, runner-owned), naming inconsistencies (runner monolith, scripts/ mixed-purpose, root planning docs, stale .canon/), and proposed destination map. Three handoffs addressed to atlas this tick: (1) architecture inventory — **done**; (2) lineage reconciliation — **blocked** (referenced inventory file `general-atlas-public-portfolio-lineage-inventory-complete.md` does not exist; handoff retained for general session); (3) migration implementation — **deferred** (explicitly requires this inventory as prerequisite; is the next attended-session task). Runner continues running; scientific state unchanged (0 promoted primitives, 0 causal edges, 69 refuted nodes, loop hypothesis-space-exhausted).
 
