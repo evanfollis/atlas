@@ -2,7 +2,7 @@
 name: CURRENT_STATE
 description: Bounded operational and scientific snapshot for Atlas
 type: front-door
-updated: 2026-09-05T03:26:28Z
+updated: 2026-09-05T04:14:32Z
 ---
 
 # CURRENT_STATE — Atlas
@@ -28,9 +28,9 @@ Measured from `/opt/workspace/runtime/projects/atlas/` and the repository on
   168 inconclusive, 9 supporting. No candidate passes the promotion gate.
 - Causal map: 69 refuted nodes, 0 promoted primitives, 0 causal edges.
 - Service: disabled and inactive as of this snapshot.
-- Repository: `main` matched `origin/main` before this recovery change.
-  `graph/causal_graph.json` is runner-owned drift and remains deliberately
-  unstaged.
+- Repository: `main` is aligned with `origin/main`. The runner-owned graph drift
+  through the final 2026-09-05T02:24Z cycle was provenance-audited and captured
+  separately from the market-data recovery change.
 
 ### Last seven days of cycles
 
@@ -137,5 +137,9 @@ All conditions are required:
 - The 3 formulated 4h hypotheses remain environmentally blocked; do not mark
   them permanently infeasible solely because 4h is absent from the current
   universe.
-- The working tree's graph drift must be handled only as runner-owned graph
-  provenance, never folded into unrelated commits.
+- Graph hygiene audit: the drift added 140 `live_observation` references across
+  seven non-overlapping weekly buckets (20 each; 134 null confirmations, 4 edge
+  appearances, 2 inconclusive). Every reference matches a resolved append-only
+  prediction and authoritative evidence record; an independent backfill from
+  runtime state reproduced the graph byte-for-byte. No recovery/readiness probe
+  mutation was present.
